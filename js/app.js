@@ -20,7 +20,8 @@
   const Sync = window.CapacitySync;
   const Auth = window.CapacityAuth;
   const Graph = window.CapacityGraph;
-  if (!Calc || !Store || !SP || !Sync || !Auth || !Graph) {
+  const Files = window.CapacityFileStore;
+  if (!Calc || !Store || !SP || !Sync || !Auth || !Graph || !Files) {
     bootFailed(new Error("Required scripts did not load."));
     return;
   }
@@ -42,6 +43,8 @@
     syncError: "",
     pushTimer: 0,
     pollTimer: 0,
+    filePoll: 0,
+    filePushTimer: 0,
     listPoll: 0,
     signIn: null
   };
@@ -134,6 +137,9 @@
   }
 
   function storageLabel() {
+    if (state.settings.storage === "file" && Files.connected()) {
+      return state.syncState === "live" ? "Shared file (live)" : "Shared file";
+    }
     if (state.settings.storage === "team" && state.settings.teamBinId) {
       return state.syncState === "live" ? "Live team board" : "Team board";
     }
@@ -141,6 +147,10 @@
       return Auth.hasToken() ? "SharePoint (signed in)" : "SharePoint (sign in)";
     }
     return "This browser only";
+  }
+
+  function fileEnabled() {
+    return state.settings.storage === "file" && Files.connected();
   }
 
   function teamEnabled() {
@@ -214,6 +224,12 @@
       return `<div class="banner warn">
         <span>This HTML page is the app. Data lives in SharePoint lists on Production. Sign in with your work account.</span>
         <button class="btn small" data-action="sp-signin">Sign in</button>
+      </div>`;
+    }
+    if (state.settings.storage === "file" && !Files.connected()) {
+      return `<div class="banner warn">
+        <span>Connect capacity-data.json (keep it in the synced SharePoint folder) so everyone shares one board.</span>
+        <button class="btn small" data-action="file-open">Open team file</button>
       </div>`;
     }
     return "";
@@ -855,7 +871,16 @@
           </form>
         </section>
         <section class="card">
-          <h3>Live team board</h3>
+          <h3>Shared data file</h3>
+          <p class="help">The app cannot run as a live page inside SharePoint. Put <code>capacity-data.json</code> in the same SharePoint folder, sync that folder with OneDrive, then connect the file here. Everyone uses the HTML. The JSON file is the database. It stays in your tenant.</p>
+          <div class="row-actions">
+            <button class="btn primary" type="button" data-action="file-create">Create team file</button>
+            <button class="btn" type="button" data-action="file-open">Open existing team file</button>
+          </div>
+          <p class="tiny muted" style="margin-top:0.6rem">${Files.connected() ? "Connected to capacity-data.json · " + esc(state.syncState) : Files.supported() ? "Not connected yet" : "Open with Start-CapacityTracker.bat in Edge or Chrome"}</p>
+        </section>
+        <section class="card">
+          <h3>Live team board (outside tenant)</h3>
           <p class="help">Everyone who opens this HTML file shares one board. New work orders show up on other computers in a few seconds. Keep the file on SharePoint and open the downloaded copy.</p>
           <form class="form-grid" data-form="settings-team">
             <label class="span-2">JSONBin master key
@@ -883,7 +908,8 @@
           <form class="form-grid" data-form="settings-storage">
             <label class="span-2">Store data in
               <select class="field" name="storage">
-                <option value="team" ${s.storage === "team" ? "selected" : ""}>Live team board (everyone)</option>
+                <option value="file" ${s.storage === "file" ? "selected" : ""}>Shared data file (this folder)</option>
+                <option value="team" ${s.storage === "team" ? "selected" : ""}>JSONBin (leaves tenant)</option>
                 <option value="local" ${s.storage === "local" ? "selected" : ""}>This browser only</option>
                 <option value="sharepoint" ${s.storage === "sharepoint" ? "selected" : ""}>SharePoint lists</option>
               </select>
@@ -1157,6 +1183,7 @@
   function persistLocal() {
     state.data.updatedAt = Date.now();
     Store.LocalStore.save(state.data);
+    if (fileEnabled()) queueFilePush();
     if (teamEnabled()) queueTeamPush();
   }
 
@@ -1164,6 +1191,69 @@
     Store.LocalStore.saveSettings(state.settings);
     connectRepo();
     startTeamPoll();
+    startFilePoll();
+  }
+
+  function queueFilePush() {
+    if (!fileEnabled()) return;
+    window.clearTimeout(state.filePushTimer);
+    state.filePushTimer = window.setTimeout(function () {
+      Files.write(state.data)
+        .then(function () {
+          state.syncState = "live";
+          state.syncError = "";
+        })
+        .catch(function (err) {
+          state.syncState = "error";
+          state.syncError = err.message || String(err);
+          toast(state.syncError, "error");
+        });
+    }, 300);
+  }
+
+  function startFilePoll() {
+    window.clearInterval(state.filePoll);
+    if (!fileEnabled()) return;
+    state.filePoll = window.setInterval(function () {
+      if (state.modal || state.busy) return;
+      Files.changedOnDisk()
+        .then(function (changed) {
+          if (!changed) return;
+          return Files.read().then(function (remote) {
+            if (state.modal || state.busy) return;
+            state.data = remote;
+            Store.LocalStore.save(state.data);
+            state.syncState = "live";
+            renderShell();
+          });
+        })
+        .catch(function () {
+          /* keep last good copy */
+        });
+    }, 2500);
+  }
+
+  async function connectTeamFile(create) {
+    if (create) await Files.createNew();
+    else await Files.pickExisting();
+    state.settings.storage = "file";
+    persistSettings();
+    let data = Store.emptyData();
+    try {
+      data = await Files.read();
+    } catch (err) {
+      data = Store.emptyData();
+    }
+    if (!data.workCenters.length && !data.workOrders.length && state.data.workCenters.length) {
+      data = state.data;
+    }
+    data.updatedAt = Date.now();
+    state.data = data;
+    await Files.write(state.data);
+    Store.LocalStore.save(state.data);
+    state.syncState = "live";
+    startFilePoll();
+    toast("Using the shared data file. Keep it in the OneDrive-synced SharePoint folder.");
   }
 
   function queueTeamPush() {
@@ -1649,6 +1739,8 @@
     if (action === "import") return importJsonFile();
     if (action === "demo") return loadDemo();
     if (action === "reset") return resetAll();
+    if (action === "file-create") return withBusy(function () { return connectTeamFile(true); });
+    if (action === "file-open") return withBusy(function () { return connectTeamFile(false); });
     if (action === "team-create") return withBusy(startSharedBoard);
     if (action === "team-download") {
       try {
@@ -1802,7 +1894,13 @@
     }
     connectRepo();
     try {
-      if (state.settings.storage === "sharepoint" && Auth.hasToken()) {
+      if (await Files.restore()) {
+        state.settings.storage = "file";
+        Store.LocalStore.saveSettings(state.settings);
+        state.data = await Files.read();
+        state.syncState = "live";
+        startFilePoll();
+      } else if (state.settings.storage === "sharepoint" && Auth.hasToken()) {
         connectRepo();
         state.data = await state.repo.load();
       } else if (teamEnabled()) {
