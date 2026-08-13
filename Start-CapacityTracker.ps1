@@ -1,6 +1,6 @@
-# Serves the tracker on this PC so you can sign in to SharePoint.
-# Data stays in lists on the Production site.
+# Serves the tracker on this PC. Leave this window open.
 $root = $PSScriptRoot
+Get-ChildItem -LiteralPath $root -File -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue
 $port = 8765
 $url = "http://127.0.0.1:$port/CapacityTracker.html"
 

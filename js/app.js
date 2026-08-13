@@ -226,6 +226,12 @@
         <button class="btn small" data-action="sp-signin">Sign in</button>
       </div>`;
     }
+    if (state.settings.storage === "file" && Files.remembered() && !Files.connected()) {
+      return `<div class="banner warn">
+        <span>Click once to reopen your team file for this session.</span>
+        <button class="btn small primary" data-action="file-grant">Use team file</button>
+      </div>`;
+    }
     if (state.settings.storage === "file" && !Files.connected()) {
       return `<div class="banner warn">
         <span>Connect capacity-data.json (keep it in the synced SharePoint folder) so everyone shares one board.</span>
@@ -1741,6 +1747,18 @@
     if (action === "reset") return resetAll();
     if (action === "file-create") return withBusy(function () { return connectTeamFile(true); });
     if (action === "file-open") return withBusy(function () { return connectTeamFile(false); });
+    if (action === "file-grant") {
+      return withBusy(async function () {
+        await Files.grant();
+        state.settings.storage = "file";
+        persistSettings();
+        state.data = await Files.read();
+        Store.LocalStore.save(state.data);
+        state.syncState = "live";
+        startFilePoll();
+        toast("Team file connected.");
+      });
+    }
     if (action === "team-create") return withBusy(startSharedBoard);
     if (action === "team-download") {
       try {
@@ -1900,6 +1918,9 @@
         state.data = await Files.read();
         state.syncState = "live";
         startFilePoll();
+      } else if (Files.remembered()) {
+        state.settings.storage = "file";
+        Store.LocalStore.saveSettings(state.settings);
       } else if (state.settings.storage === "sharepoint" && Auth.hasToken()) {
         connectRepo();
         state.data = await state.repo.load();

@@ -59,12 +59,17 @@
   const FileStore = {
     handle: null,
     lastModified: 0,
+    canRead: false,
 
     supported() {
       return typeof window.showOpenFilePicker === "function" && typeof window.showSaveFilePicker === "function";
     },
 
     connected() {
+      return Boolean(this.handle) && this.canRead;
+    },
+
+    remembered() {
       return Boolean(this.handle);
     },
 
@@ -74,8 +79,10 @@
       try {
         const file = await handle.getFile();
         this.lastModified = file.lastModified;
+        this.canRead = true;
       } catch (err) {
         this.lastModified = 0;
+        this.canRead = false;
       }
     },
 
@@ -83,15 +90,26 @@
       if (!this.supported()) return false;
       const handle = await idbGet("team");
       if (!handle) return false;
+      this.handle = handle;
       if (handle.queryPermission) {
-        let perm = await handle.queryPermission({ mode: "readwrite" });
-        if (perm !== "granted" && handle.requestPermission) {
-          perm = await handle.requestPermission({ mode: "readwrite" });
+        const perm = await handle.queryPermission({ mode: "readwrite" });
+        if (perm !== "granted") {
+          this.canRead = false;
+          return false;
         }
-        if (perm !== "granted") return false;
       }
       await this.remember(handle);
-      return true;
+      return this.canRead;
+    },
+
+    async grant() {
+      if (!this.handle) throw new Error("No team file remembered. Open capacity-data.json once.");
+      if (this.handle.requestPermission) {
+        const perm = await this.handle.requestPermission({ mode: "readwrite" });
+        if (perm !== "granted") throw new Error("Allow access to the team file when the browser asks.");
+      }
+      await this.remember(this.handle);
+      if (!this.canRead) throw new Error("Could not read the team file.");
     },
 
     async pickExisting() {

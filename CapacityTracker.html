@@ -2603,12 +2603,17 @@ textarea { min-height: 4.2rem; resize: vertical; }
   const FileStore = {
     handle: null,
     lastModified: 0,
+    canRead: false,
 
     supported() {
       return typeof window.showOpenFilePicker === "function" && typeof window.showSaveFilePicker === "function";
     },
 
     connected() {
+      return Boolean(this.handle) && this.canRead;
+    },
+
+    remembered() {
       return Boolean(this.handle);
     },
 
@@ -2618,8 +2623,10 @@ textarea { min-height: 4.2rem; resize: vertical; }
       try {
         const file = await handle.getFile();
         this.lastModified = file.lastModified;
+        this.canRead = true;
       } catch (err) {
         this.lastModified = 0;
+        this.canRead = false;
       }
     },
 
@@ -2627,15 +2634,26 @@ textarea { min-height: 4.2rem; resize: vertical; }
       if (!this.supported()) return false;
       const handle = await idbGet("team");
       if (!handle) return false;
+      this.handle = handle;
       if (handle.queryPermission) {
-        let perm = await handle.queryPermission({ mode: "readwrite" });
-        if (perm !== "granted" && handle.requestPermission) {
-          perm = await handle.requestPermission({ mode: "readwrite" });
+        const perm = await handle.queryPermission({ mode: "readwrite" });
+        if (perm !== "granted") {
+          this.canRead = false;
+          return false;
         }
-        if (perm !== "granted") return false;
       }
       await this.remember(handle);
-      return true;
+      return this.canRead;
+    },
+
+    async grant() {
+      if (!this.handle) throw new Error("No team file remembered. Open capacity-data.json once.");
+      if (this.handle.requestPermission) {
+        const perm = await this.handle.requestPermission({ mode: "readwrite" });
+        if (perm !== "granted") throw new Error("Allow access to the team file when the browser asks.");
+      }
+      await this.remember(this.handle);
+      if (!this.canRead) throw new Error("Could not read the team file.");
     },
 
     async pickExisting() {
@@ -2915,6 +2933,12 @@ textarea { min-height: 4.2rem; resize: vertical; }
       return `<div class="banner warn">
         <span>This HTML page is the app. Data lives in SharePoint lists on Production. Sign in with your work account.</span>
         <button class="btn small" data-action="sp-signin">Sign in</button>
+      </div>`;
+    }
+    if (state.settings.storage === "file" && Files.remembered() && !Files.connected()) {
+      return `<div class="banner warn">
+        <span>Click once to reopen your team file for this session.</span>
+        <button class="btn small primary" data-action="file-grant">Use team file</button>
       </div>`;
     }
     if (state.settings.storage === "file" && !Files.connected()) {
@@ -4432,6 +4456,18 @@ textarea { min-height: 4.2rem; resize: vertical; }
     if (action === "reset") return resetAll();
     if (action === "file-create") return withBusy(function () { return connectTeamFile(true); });
     if (action === "file-open") return withBusy(function () { return connectTeamFile(false); });
+    if (action === "file-grant") {
+      return withBusy(async function () {
+        await Files.grant();
+        state.settings.storage = "file";
+        persistSettings();
+        state.data = await Files.read();
+        Store.LocalStore.save(state.data);
+        state.syncState = "live";
+        startFilePoll();
+        toast("Team file connected.");
+      });
+    }
     if (action === "team-create") return withBusy(startSharedBoard);
     if (action === "team-download") {
       try {
@@ -4591,6 +4627,9 @@ textarea { min-height: 4.2rem; resize: vertical; }
         state.data = await Files.read();
         state.syncState = "live";
         startFilePoll();
+      } else if (Files.remembered()) {
+        state.settings.storage = "file";
+        Store.LocalStore.saveSettings(state.settings);
       } else if (state.settings.storage === "sharepoint" && Auth.hasToken()) {
         connectRepo();
         state.data = await state.repo.load();
