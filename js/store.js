@@ -37,9 +37,32 @@
     return JSON.parse(JSON.stringify(value));
   }
 
+  const memoryStore = Object.create(null);
+
+  function storageGet(key) {
+    try {
+      if (typeof localStorage !== "undefined") return localStorage.getItem(key);
+    } catch (err) {
+      /* iframe or locked-down SharePoint can block storage */
+    }
+    return Object.prototype.hasOwnProperty.call(memoryStore, key) ? memoryStore[key] : null;
+  }
+
+  function storageSet(key, text) {
+    try {
+      if (typeof localStorage !== "undefined") {
+        localStorage.setItem(key, text);
+        return;
+      }
+    } catch (err) {
+      /* fall through to memory */
+    }
+    memoryStore[key] = text;
+  }
+
   function readJson(key, fallback) {
     try {
-      const raw = localStorage.getItem(key);
+      const raw = storageGet(key);
       if (!raw) return clone(fallback);
       return JSON.parse(raw);
     } catch (err) {
@@ -49,7 +72,7 @@
   }
 
   function writeJson(key, value) {
-    localStorage.setItem(key, JSON.stringify(value));
+    storageSet(key, JSON.stringify(value));
   }
 
   function normalizeSettings(raw) {

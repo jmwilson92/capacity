@@ -1,3 +1,1930 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Capacity Tracker</title>
+  <meta name="description" content="Track work center capacity, people hours, and work order load.">
+  <style>
+:root {
+  --paper: #f3efe6;
+  --paper-2: #e8e2d4;
+  --ink: #1b1814;
+  --ink-soft: #5c564c;
+  --rule: #d4cbb8;
+  --card: #fffcf6;
+  --card-2: #f7f1e6;
+  --accent: #1f6f6a;
+  --accent-ink: #0e3d3a;
+  --accent-soft: #d5ebe8;
+  --over: #9b2c1a;
+  --over-soft: #f6d9d2;
+  --tight: #9a4d0f;
+  --tight-soft: #f6e3c8;
+  --healthy: #2d6a3a;
+  --healthy-soft: #d7ead9;
+  --light: #3d5c78;
+  --light-soft: #d7e3ee;
+  --hold: #6b5a2e;
+  --shadow: 0 1px 0 rgba(27, 24, 20, 0.06), 0 12px 28px rgba(27, 24, 20, 0.08);
+  --radius: 14px;
+  --sans: "Segoe UI", "Source Sans 3", system-ui, sans-serif;
+  --mono: "Cascadia Mono", "Segoe UI Mono", ui-monospace, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+body {
+  background-image:
+    radial-gradient(circle at 0 0, rgba(31, 111, 106, 0.07), transparent 32rem),
+    linear-gradient(180deg, #efe8d8 0%, var(--paper) 14rem);
+}
+
+button, input, select, textarea {
+  font: inherit;
+  color: inherit;
+}
+
+#app {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.top {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: rgba(243, 239, 230, 0.92);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--rule);
+}
+
+.top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1.25rem 0.35rem;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.mark {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--accent-ink);
+  color: #f4efe4;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+}
+
+.brand h1 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.brand p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+}
+
+.top-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.15rem;
+  padding: 0 1rem 0.45rem;
+  overflow-x: auto;
+}
+
+.tab {
+  border: 0;
+  background: transparent;
+  color: var(--ink-soft);
+  padding: 0.45rem 0.75rem;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tab:hover { background: rgba(27, 24, 20, 0.05); color: var(--ink); }
+.tab.is-on {
+  background: var(--accent-ink);
+  color: #f6f1e7;
+}
+
+.wrap {
+  width: min(1240px, 100%);
+  margin: 0 auto;
+  padding: 1.1rem 1.15rem 3rem;
+  flex: 1;
+}
+
+.page-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.page-head h2 {
+  margin: 0;
+  font-size: 1.35rem;
+  letter-spacing: -0.03em;
+}
+
+.page-head .lede {
+  margin: 0.2rem 0 0;
+  color: var(--ink-soft);
+}
+
+.filters {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.kpi, .card, .empty, .modal-card {
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.kpi {
+  padding: 0.9rem 1rem;
+}
+
+.kpi .label {
+  display: flex;
+  justify-content: space-between;
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.kpi .value {
+  font-size: 1.7rem;
+  font-weight: 650;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+  margin-top: 0.15rem;
+}
+
+.kpi .hint {
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+}
+
+.kpi.over { background: linear-gradient(180deg, #fff8f5, var(--card)); }
+.kpi.tight { background: linear-gradient(180deg, #fff8ee, var(--card)); }
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1.4fr 0.9fr;
+  gap: 0.75rem;
+}
+
+.card { padding: 1rem; }
+.card h3 {
+  margin: 0 0 0.75rem;
+  font-size: 0.95rem;
+}
+
+.table-wrap { overflow-x: auto; }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+th, td {
+  text-align: left;
+  padding: 0.55rem 0.45rem;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: middle;
+}
+
+th {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+  font-weight: 650;
+}
+
+tr:last-child td { border-bottom: 0; }
+tbody tr:hover td { background: rgba(31, 111, 106, 0.04); }
+
+.num, .right { text-align: right; }
+.muted { color: var(--ink-soft); }
+.tiny { font-size: 0.78rem; }
+
+.center-dot {
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 0.4rem;
+  vertical-align: middle;
+}
+
+.util {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 8rem;
+}
+
+.bar {
+  flex: 1;
+  height: 0.45rem;
+  background: var(--paper-2);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+  background: var(--healthy);
+}
+
+.bar.over > span { background: var(--over); }
+.bar.tight > span { background: var(--tight); }
+.bar.light > span { background: var(--light); }
+.bar.none > span { background: transparent; }
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  background: var(--card-2);
+}
+
+.pill.over { background: var(--over-soft); color: var(--over); }
+.pill.tight { background: var(--tight-soft); color: var(--tight); }
+.pill.healthy { background: var(--healthy-soft); color: var(--healthy); }
+.pill.light { background: var(--light-soft); color: var(--light); }
+.pill.queued { background: #ece7db; }
+.pill.in-progress { background: var(--accent-soft); color: var(--accent-ink); }
+.pill.on-hold { background: #efe4c4; color: var(--hold); }
+.pill.complete { background: #e4e4e4; color: #555; }
+.pill.high { background: var(--over-soft); color: var(--over); }
+.pill.low { background: #ece7db; }
+
+.btn {
+  border: 1px solid var(--rule);
+  background: var(--card);
+  border-radius: 10px;
+  padding: 0.42rem 0.75rem;
+  cursor: pointer;
+  line-height: 1.2;
+}
+
+.btn:hover { border-color: #b9ae97; background: #fff; }
+.btn.primary {
+  background: var(--accent-ink);
+  color: #f6f1e7;
+  border-color: var(--accent-ink);
+}
+.btn.primary:hover { filter: brightness(1.08); }
+.btn.ghost { background: transparent; }
+.btn.danger { color: var(--over); border-color: #e3b6ad; }
+.btn.danger:hover { background: var(--over-soft); }
+.btn.small { padding: 0.25rem 0.5rem; font-size: 0.8rem; }
+.btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+
+.icon-btn {
+  width: 2rem;
+  height: 2rem;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+}
+
+.field, .search {
+  border: 1px solid var(--rule);
+  background: #fff;
+  border-radius: 10px;
+  padding: 0.42rem 0.65rem;
+}
+
+.search { min-width: 12rem; }
+.field.compact { min-width: 10.5rem; padding: 0.28rem 0.45rem; }
+.pill.pto { background: var(--light-soft); color: var(--light); }
+.pill.sick { background: var(--over-soft); color: var(--over); }
+.pill.other { background: #ece7db; }
+.out-block {
+  margin-bottom: 0.85rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--rule);
+}
+.out-block h3 { margin-bottom: 0.35rem; }
+
+.check {
+  flex-direction: row !important;
+  align-items: flex-start;
+  gap: 0.55rem;
+  font-weight: 400;
+  color: var(--ink);
+}
+.check input {
+  margin-top: 0.2rem;
+  flex: 0 0 auto;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 0.75rem;
+}
+
+.wc-card { padding: 1rem; display: flex; flex-direction: column; gap: 0.65rem; }
+.wc-card header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+.wc-card h3 { margin: 0; font-size: 1.05rem; }
+.meta { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; }
+.meta div {
+  background: var(--card-2);
+  border-radius: 10px;
+  padding: 0.45rem 0.55rem;
+}
+.meta .k { display: block; font-size: 0.7rem; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.04em; }
+.meta .v { font-weight: 650; font-variant-numeric: tabular-nums; }
+
+.row-actions { display: flex; gap: 0.3rem; }
+
+.empty {
+  padding: 2.2rem 1.4rem;
+  text-align: center;
+}
+.empty h3 { margin: 0 0 0.35rem; }
+.empty p { color: var(--ink-soft); margin: 0 0 1rem; }
+
+.week-grid { overflow-x: auto; }
+.week-grid table { min-width: 720px; }
+.week-cell {
+  min-width: 5.6rem;
+  padding: 0.45rem 0.35rem !important;
+}
+.week-cell .pct { font-weight: 700; display: block; }
+.week-cell .hrs { color: var(--ink-soft); font-size: 0.75rem; }
+.week-cell.over { background: var(--over-soft); }
+.week-cell.tight { background: var(--tight-soft); }
+.week-cell.healthy { background: var(--healthy-soft); }
+.week-cell.light { background: var(--light-soft); }
+.week-head.current { color: var(--accent-ink); }
+
+.stack { display: flex; flex-direction: column; gap: 0.75rem; }
+.list-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid var(--rule);
+}
+.list-item:last-child { border-bottom: 0; padding-bottom: 0; }
+
+dialog {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  max-width: calc(100vw - 1.5rem);
+}
+dialog::backdrop { background: rgba(27, 24, 20, 0.45); }
+.modal-card {
+  width: min(560px, 92vw);
+  padding: 1.15rem 1.15rem 1rem;
+}
+.modal-card.wide { width: min(720px, 94vw); }
+.modal-card h3 { margin: 0 0 0.25rem; }
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.7rem 0.75rem;
+  margin: 1rem 0;
+}
+.form-grid label, .stack-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  font-weight: 650;
+  color: var(--ink-soft);
+}
+.form-grid .span-2 { grid-column: 1 / -1; }
+.form-grid input, .form-grid select, .form-grid textarea {
+  font-weight: 400;
+  color: var(--ink);
+}
+textarea { min-height: 4.2rem; resize: vertical; }
+.modal-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.toasts {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  z-index: 40;
+}
+.toast {
+  background: var(--accent-ink);
+  color: #f6f1e7;
+  padding: 0.65rem 0.8rem;
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  max-width: 22rem;
+}
+.toast.error { background: var(--over); }
+
+.banner {
+  margin-bottom: 1rem;
+  padding: 0.7rem 0.85rem;
+  border-radius: 12px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: center;
+}
+.banner.warn { background: var(--tight-soft); color: var(--tight); }
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.help {
+  font-size: 0.88rem;
+  color: var(--ink-soft);
+}
+
+.linkish {
+  background: none;
+  border: 0;
+  color: var(--accent-ink);
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+}
+
+.busy { opacity: 0.65; pointer-events: none; }
+
+@media (max-width: 900px) {
+  .kpis, .grid-2, .settings-grid, .form-grid { grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 640px) {
+  .kpis, .grid-2, .settings-grid, .form-grid, .meta { grid-template-columns: 1fr; }
+  .top-row { align-items: flex-start; }
+  .brand p { display: none; }
+  .form-grid .span-2 { grid-column: auto; }
+}
+
+@media print {
+  .top, .btn, .toasts, .filters, .modal-actions { display: none !important; }
+  body, .wrap { background: #fff; }
+  .card, .kpi { box-shadow: none; }
+}
+
+  </style>
+</head>
+<body>
+  <div id="app">
+    <p style="font-family:Segoe UI,sans-serif;padding:2rem">Loading Capacity Tracker…</p>
+  </div>
+  <script>
+/**
+ * Capacity math for work centers, people, and work orders.
+ * Works in the browser (window.CapacityCalc) and in Node tests.
+ */
+(function (root, factory) {
+  const api = factory();
+  if (typeof module === "object" && module.exports) {
+    module.exports = api;
+  }
+  root.CapacityCalc = api;
+})(typeof globalThis !== "undefined" ? globalThis : this, function () {
+  const MS_DAY = 86400000;
+  const MONTHS = [
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+  ];
+
+  function parseDate(value) {
+    if (!value && value !== 0) return null;
+    if (value instanceof Date) {
+      if (Number.isNaN(value.getTime())) return null;
+      return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+    }
+    const s = String(value).trim();
+    const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
+    if (iso) {
+      return new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+    }
+    const d = new Date(s);
+    if (Number.isNaN(d.getTime())) return null;
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  }
+
+  function formatISO(date) {
+    const d = date instanceof Date ? date : parseDate(date);
+    if (!d) return "";
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+
+  function formatShort(date) {
+    const d = date instanceof Date ? date : parseDate(date);
+    if (!d) return "";
+    return `${MONTHS[d.getMonth()]} ${d.getDate()}`;
+  }
+
+  function startOfWeek(date, weekStartsOn) {
+    const startOn = weekStartsOn == null ? 1 : Number(weekStartsOn);
+    const d = parseDate(date) || parseDate(new Date());
+    const day = d.getDay();
+    const diff = (day - startOn + 7) % 7;
+    return addDays(d, -diff);
+  }
+
+  function addDays(date, n) {
+    const d = parseDate(date) || parseDate(new Date());
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate() + Number(n));
+  }
+
+  function weekKey(date, weekStartsOn) {
+    return formatISO(startOfWeek(date, weekStartsOn));
+  }
+
+  function weekLabel(start, end) {
+    return `${formatShort(start)}–${formatShort(end)}`;
+  }
+
+  function planningWeeks(count, weekStartsOn, from) {
+    const n = Math.max(1, Number(count) || 8);
+    const origin = startOfWeek(from || new Date(), weekStartsOn);
+    const weeks = [];
+    for (let i = 0; i < n; i++) {
+      const start = addDays(origin, i * 7);
+      const end = addDays(start, 6);
+      weeks.push({
+        index: i,
+        key: formatISO(start),
+        start,
+        end,
+        label: weekLabel(start, end),
+        isCurrent: i === 0
+      });
+    }
+    return weeks;
+  }
+
+  function num(value, fallback) {
+    if (value === null || value === undefined || value === "") {
+      return fallback;
+    }
+    const n = Number(value);
+    return Number.isFinite(n) ? n : fallback;
+  }
+
+  function workDays(person) {
+    const days = num(person && person.workDays, 5);
+    return days > 0 ? days : 5;
+  }
+
+  function hoursPerWorkDay(person) {
+    const weekly = num(person && person.hoursPerWeek, 0);
+    if (weekly <= 0) return 0;
+    return weekly / workDays(person);
+  }
+
+  function efficiencyFactor(person) {
+    const eff = num(person && person.efficiency, 100);
+    return eff > 0 ? eff / 100 : 0;
+  }
+
+  function effectiveWeeklyHours(person) {
+    const hours = num(person && person.hoursPerWeek, 0);
+    if (hours <= 0) return 0;
+    return hours * efficiencyFactor(person);
+  }
+
+  function isWeekday(date) {
+    const d = parseDate(date);
+    if (!d) return false;
+    const day = d.getDay();
+    return day !== 0 && day !== 6;
+  }
+
+  function isWeekend(date) {
+    const d = parseDate(date);
+    if (!d) return false;
+    const day = d.getDay();
+    return day === 0 || day === 6;
+  }
+
+  function flagOn(value) {
+    return value === true || value === "true" || value === "on" || value === 1 || value === "1";
+  }
+
+  function countsWeekends(person, absence) {
+    if (absence && absence.includeWeekends !== undefined && absence.includeWeekends !== null && absence.includeWeekends !== "") {
+      return flagOn(absence.includeWeekends);
+    }
+    return flagOn(person && person.worksWeekends);
+  }
+
+  function isCountableDay(date, includeWeekends) {
+    if (isWeekday(date)) return true;
+    return Boolean(includeWeekends) && isWeekend(date);
+  }
+
+  function eachDate(start, end, fn) {
+    const a = parseDate(start);
+    const b = parseDate(end) || a;
+    if (!a || !b) return;
+    let cursor = a <= b ? a : b;
+    const stop = a <= b ? b : a;
+    while (cursor <= stop) {
+      fn(new Date(cursor.getTime()));
+      cursor = addDays(cursor, 1);
+    }
+  }
+
+  function weekdayCount(start, end, includeWeekends) {
+    let count = 0;
+    eachDate(start, end, (d) => {
+      if (isCountableDay(d, includeWeekends)) count += 1;
+    });
+    return count;
+  }
+
+  function datesOverlap(aStart, aEnd, bStart, bEnd) {
+    const a0 = parseDate(aStart);
+    const a1 = parseDate(aEnd) || a0;
+    const b0 = parseDate(bStart);
+    const b1 = parseDate(bEnd) || b0;
+    if (!a0 || !b0) return false;
+    const aLo = a0 <= a1 ? a0 : a1;
+    const aHi = a0 <= a1 ? a1 : a0;
+    return aLo <= b1 && aHi >= b0;
+  }
+
+  function hasExplicitHours(absence) {
+    return !(absence.hours === null || absence.hours === undefined || absence.hours === "");
+  }
+
+  function weekdayCountInWeek(start, end, week, includeWeekends) {
+    let count = 0;
+    eachDate(start, end, (d) => {
+      if (isCountableDay(d, includeWeekends) && d >= week.start && d <= week.end) count += 1;
+    });
+    return count;
+  }
+
+  function absenceHoursInWeek(absence, person, week) {
+    if (!absence || !week) return 0;
+    const start = absence.startDate;
+    const end = absence.endDate || absence.startDate;
+    if (!datesOverlap(start, end, week.start, week.end)) return 0;
+
+    const weekends = countsWeekends(person, absence);
+    const daysInWeek = weekdayCountInWeek(start, end, week, weekends);
+    const daysTotal = weekdayCount(start, end, weekends);
+
+    if (hasExplicitHours(absence)) {
+      const total = Math.max(0, num(absence.hours, 0));
+      if (daysTotal === 0) {
+        const s = parseDate(start);
+        return s && s >= week.start && s <= week.end ? total : 0;
+      }
+      return total * (daysInWeek / daysTotal);
+    }
+
+    return daysInWeek * hoursPerWorkDay(person);
+  }
+
+  function timeOffHoursForPerson(person, absences, week) {
+    if (!person) return 0;
+    const pid = String(person.id);
+    let off = 0;
+    for (const absence of absences || []) {
+      if (!absence || String(absence.personId) !== pid) continue;
+      off += absenceHoursInWeek(absence, person, week);
+    }
+    return Math.min(off, Math.max(0, num(person.hoursPerWeek, 0)));
+  }
+
+  function personWeekBreakdown(person, absences, week) {
+    const baseHours = Math.max(0, num(person && person.hoursPerWeek, 0));
+    const off = timeOffHoursForPerson(person, absences, week);
+    const remainingClock = Math.max(0, baseHours - off);
+    const factor = efficiencyFactor(person);
+    return {
+      baseHours,
+      off,
+      remainingClock,
+      available: remainingClock * factor,
+      effectiveBase: baseHours * factor
+    };
+  }
+
+  function upcomingAbsence(person, absences, from) {
+    const today = parseDate(from || new Date());
+    const pid = String(person && person.id);
+    return (absences || [])
+      .filter((a) => a && String(a.personId) === pid)
+      .filter((a) => {
+        const end = parseDate(a.endDate || a.startDate);
+        return end && end >= today;
+      })
+      .sort((a, b) => String(a.startDate).localeCompare(String(b.startDate)))[0] || null;
+  }
+
+  function remainingHours(wo) {
+    if (!wo || wo.status === "complete") return 0;
+    if (wo.remainingHours === null || wo.remainingHours === undefined || wo.remainingHours === "") {
+      return Math.max(0, num(wo.hours, 0));
+    }
+    return Math.max(0, num(wo.remainingHours, 0));
+  }
+
+  function isOpen(wo) {
+    return Boolean(wo) && wo.status !== "complete";
+  }
+
+  function isOverdue(wo, from) {
+    if (!isOpen(wo)) return false;
+    const due = parseDate(wo.dueDate);
+    if (!due) return false;
+    const today = parseDate(from || new Date());
+    return due < today;
+  }
+
+  function weeksUntilDue(dueDate, weekStartsOn, from) {
+    const due = parseDate(dueDate);
+    if (!due) return null;
+    const dueWeek = startOfWeek(due, weekStartsOn);
+    const nowWeek = startOfWeek(from || new Date(), weekStartsOn);
+    return Math.round((dueWeek - nowWeek) / (7 * MS_DAY));
+  }
+
+  function weeklyCapacityByCenter(people) {
+    const map = Object.create(null);
+    for (const person of people || []) {
+      if (!person || !person.workCenterId) continue;
+      const id = String(person.workCenterId);
+      map[id] = (map[id] || 0) + effectiveWeeklyHours(person);
+    }
+    return map;
+  }
+
+  function headcountByCenter(people) {
+    const map = Object.create(null);
+    for (const person of people || []) {
+      if (!person || !person.workCenterId) continue;
+      const id = String(person.workCenterId);
+      map[id] = (map[id] || 0) + 1;
+    }
+    return map;
+  }
+
+  function utilization(load, capacity) {
+    const l = num(load, 0);
+    const c = num(capacity, 0);
+    if (c <= 0) return l > 0 ? Infinity : 0;
+    return l / c;
+  }
+
+  function utilLevel(util) {
+    if (!Number.isFinite(util)) return util > 0 ? "over" : "none";
+    if (util > 1) return "over";
+    if (util >= 0.85) return "tight";
+    if (util >= 0.55) return "healthy";
+    if (util > 0) return "light";
+    return "none";
+  }
+
+  function formatUtil(util) {
+    if (!Number.isFinite(util)) return util > 0 ? "No cap." : "—";
+    return `${Math.round(util * 100)}%`;
+  }
+
+  function formatHours(value) {
+    const n = num(value, 0);
+    const rounded = Math.round(n * 10) / 10;
+    return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+  }
+
+  /**
+   * Split a work order's remaining hours into week buckets.
+   * due-week: all hours land in the due date's week
+   * spread: hours split evenly from the current week through the due week
+   */
+  function distributeHours(wo, weeks, weekStartsOn, mode, from) {
+    const hours = remainingHours(wo);
+    if (hours <= 0) return {};
+
+    const due = parseDate(wo.dueDate);
+    if (!due) return { unscheduled: hours };
+
+    const currentStart = startOfWeek(from || new Date(), weekStartsOn);
+    const dueStart = startOfWeek(due, weekStartsOn);
+    const dueKey = formatISO(dueStart);
+    const horizonKeys = new Set((weeks || []).map((w) => w.key));
+
+    if (dueStart < currentStart) {
+      return { overdue: hours };
+    }
+
+    if (mode !== "spread") {
+      if (horizonKeys.has(dueKey)) return { [dueKey]: hours };
+      return { later: hours };
+    }
+
+    const keys = [];
+    let cursor = new Date(currentStart.getTime());
+    while (cursor <= dueStart) {
+      keys.push(formatISO(cursor));
+      cursor = addDays(cursor, 7);
+    }
+    if (!keys.length) return { overdue: hours };
+
+    const per = hours / keys.length;
+    const out = Object.create(null);
+    for (const key of keys) {
+      if (horizonKeys.has(key)) {
+        out[key] = (out[key] || 0) + per;
+      } else {
+        out.later = (out.later || 0) + per;
+      }
+    }
+    return out;
+  }
+
+  function emptyWeekMap(weeks) {
+    const map = Object.create(null);
+    for (const week of weeks) map[week.key] = 0;
+    return map;
+  }
+
+  function emptyCenter(wc, weeklyCap, headcount, weeks) {
+    const capacityByWeek = emptyWeekMap(weeks);
+    const timeOffByWeek = emptyWeekMap(weeks);
+    for (const week of weeks) capacityByWeek[week.key] = weeklyCap;
+    return {
+      id: String(wc.id),
+      name: wc.name || "Untitled",
+      notes: wc.notes || "",
+      color: wc.color || "#1f6f6a",
+      weeklyCapacity: weeklyCap,
+      headcount,
+      remainingHours: 0,
+      overdueHours: 0,
+      laterHours: 0,
+      unscheduledHours: 0,
+      completeHours: 0,
+      openCount: 0,
+      loadByWeek: emptyWeekMap(weeks),
+      capacityByWeek,
+      timeOffByWeek,
+      orders: [],
+      overdueOrders: [],
+      thisWeekLoad: 0,
+      thisWeekCapacity: weeklyCap,
+      thisWeekTimeOff: 0,
+      thisWeekUtil: 0,
+      thisWeekLevel: "none",
+      horizonLoad: 0,
+      horizonCapacity: weeklyCap * weeks.length,
+      horizonUtil: 0,
+      horizonLevel: "none",
+      availableThisWeek: weeklyCap
+    };
+  }
+
+  function applyWeekCapacity(center, weeks, capacityByWeek, timeOffByWeek) {
+    const id = center.id;
+    for (const week of weeks) {
+      if (capacityByWeek && capacityByWeek[id]) {
+        center.capacityByWeek[week.key] = capacityByWeek[id][week.key] || 0;
+      }
+      if (timeOffByWeek && timeOffByWeek[id]) {
+        center.timeOffByWeek[week.key] = timeOffByWeek[id][week.key] || 0;
+      }
+    }
+    return center;
+  }
+
+  function finalizeCenter(center, weeks) {
+    const thisKey = weeks.length ? weeks[0].key : "";
+    center.thisWeekLoad = thisKey ? center.loadByWeek[thisKey] || 0 : 0;
+    center.thisWeekCapacity = thisKey ? center.capacityByWeek[thisKey] || 0 : 0;
+    center.thisWeekTimeOff = thisKey ? center.timeOffByWeek[thisKey] || 0 : 0;
+    center.thisWeekUtil = utilization(center.thisWeekLoad, center.thisWeekCapacity);
+    center.thisWeekLevel = utilLevel(center.thisWeekUtil);
+    center.horizonLoad = weeks.reduce((sum, week) => sum + (center.loadByWeek[week.key] || 0), 0);
+    center.horizonCapacity = weeks.reduce((sum, week) => sum + (center.capacityByWeek[week.key] || 0), 0);
+    center.horizonUtil = utilization(center.horizonLoad, center.horizonCapacity);
+    center.horizonLevel = utilLevel(center.horizonUtil);
+    center.availableThisWeek = center.thisWeekCapacity - center.thisWeekLoad;
+    return center;
+  }
+
+  function rollup(centers, weeks) {
+    const totals = emptyCenter(
+      { id: "all", name: "All work centers", color: "#1f6f6a" },
+      centers.reduce((s, c) => s + c.weeklyCapacity, 0),
+      centers.reduce((s, c) => s + c.headcount, 0),
+      weeks
+    );
+    for (const week of weeks) {
+      totals.capacityByWeek[week.key] = 0;
+      totals.timeOffByWeek[week.key] = 0;
+    }
+    for (const center of centers) {
+      totals.remainingHours += center.remainingHours;
+      totals.overdueHours += center.overdueHours;
+      totals.laterHours += center.laterHours;
+      totals.unscheduledHours += center.unscheduledHours;
+      totals.completeHours += center.completeHours;
+      totals.openCount += center.openCount;
+      totals.orders = totals.orders.concat(center.orders);
+      totals.overdueOrders = totals.overdueOrders.concat(center.overdueOrders);
+      for (const week of weeks) {
+        totals.loadByWeek[week.key] += center.loadByWeek[week.key] || 0;
+        totals.capacityByWeek[week.key] += center.capacityByWeek[week.key] || 0;
+        totals.timeOffByWeek[week.key] += center.timeOffByWeek[week.key] || 0;
+      }
+    }
+    return finalizeCenter(totals, weeks);
+  }
+
+  /**
+   * A job "fits alone" if its remaining hours can be absorbed by this
+   * work center's capacity between now and the due week. Pass capacityByWeek
+   * (week key → hours) to account for PTO; otherwise weeklyCapacity is repeated.
+   */
+  function fitsAlone(wo, weeklyCapacity, weekStartsOn, from, capacityByWeek) {
+    if (!isOpen(wo)) return true;
+    const hours = remainingHours(wo);
+    if (hours <= 0) return true;
+    const until = weeksUntilDue(wo.dueDate, weekStartsOn, from);
+    if (until == null) return true;
+    if (until < 0) return false;
+    if (capacityByWeek && typeof capacityByWeek === "object") {
+      const origin = startOfWeek(from || new Date(), weekStartsOn);
+      let sum = 0;
+      for (let i = 0; i <= until; i++) {
+        sum += num(capacityByWeek[formatISO(addDays(origin, i * 7))], 0);
+      }
+      return hours <= sum + 1e-9;
+    }
+    const cap = num(weeklyCapacity, 0);
+    if (cap <= 0) return false;
+    return hours <= cap * (until + 1) + 1e-9;
+  }
+
+  function weekCapacityMaps(people, absences, weeks) {
+    const capacityByWeek = Object.create(null);
+    const timeOffByWeek = Object.create(null);
+    for (const person of people || []) {
+      if (!person || !person.workCenterId) continue;
+      const id = String(person.workCenterId);
+      if (!capacityByWeek[id]) {
+        capacityByWeek[id] = emptyWeekMap(weeks);
+        timeOffByWeek[id] = emptyWeekMap(weeks);
+      }
+      for (const week of weeks) {
+        const row = personWeekBreakdown(person, absences, week);
+        capacityByWeek[id][week.key] += row.available;
+        timeOffByWeek[id][week.key] += row.off;
+      }
+    }
+    return { capacityByWeek, timeOffByWeek };
+  }
+
+  function summarize(data, options) {
+    const opts = options || {};
+    const weekCount = num(opts.planningWeeks, 8);
+    const weekStartsOn = num(opts.weekStartsOn, 1);
+    const loadMode = opts.loadMode === "spread" ? "spread" : "due-week";
+    const from = opts.from || new Date();
+    const weeks = planningWeeks(weekCount, weekStartsOn, from);
+    const people = (data && data.people) || [];
+    const orders = (data && data.workOrders) || [];
+    const workCenters = (data && data.workCenters) || [];
+    const absences = (data && data.absences) || [];
+    const capacity = weeklyCapacityByCenter(people);
+    const headcount = headcountByCenter(people);
+    const weekMaps = weekCapacityMaps(people, absences, weeks);
+    const byCenter = Object.create(null);
+
+    for (const wc of workCenters) {
+      const id = String(wc.id);
+      byCenter[id] = applyWeekCapacity(
+        emptyCenter(wc, capacity[id] || 0, headcount[id] || 0, weeks),
+        weeks,
+        weekMaps.capacityByWeek,
+        weekMaps.timeOffByWeek
+      );
+    }
+
+    const unassigned = { hours: 0, orders: [] };
+
+    for (const wo of orders) {
+      const wcId = wo.workCenterId ? String(wo.workCenterId) : "";
+      const target = wcId ? byCenter[wcId] : null;
+      const rem = remainingHours(wo);
+
+      if (!target) {
+        if (isOpen(wo) && rem > 0) {
+          unassigned.hours += rem;
+          unassigned.orders.push(wo);
+        }
+        continue;
+      }
+
+      target.orders.push(wo);
+      if (!isOpen(wo)) {
+        target.completeHours += Math.max(0, num(wo.hours, 0));
+        continue;
+      }
+
+      target.openCount += 1;
+      target.remainingHours += rem;
+      const buckets = distributeHours(wo, weeks, weekStartsOn, loadMode, from);
+      if (buckets.overdue) {
+        target.overdueHours += buckets.overdue;
+        target.overdueOrders.push(wo);
+      }
+      if (buckets.unscheduled) target.unscheduledHours += buckets.unscheduled;
+      if (buckets.later) target.laterHours += buckets.later;
+      for (const week of weeks) {
+        const hours = buckets[week.key] || 0;
+        if (hours) target.loadByWeek[week.key] += hours;
+      }
+    }
+
+    const centers = workCenters.map((wc) => finalizeCenter(byCenter[String(wc.id)], weeks));
+    const totals = rollup(centers, weeks);
+
+    const atRisk = [];
+    for (const center of centers) {
+      for (const wo of center.orders) {
+        if (!isOpen(wo)) continue;
+        const due = parseDate(wo.dueDate);
+        const dueKey = due ? weekKey(due, weekStartsOn) : null;
+        const dueWeekLoad = dueKey && Object.prototype.hasOwnProperty.call(center.loadByWeek, dueKey)
+          ? center.loadByWeek[dueKey]
+          : 0;
+        const dueWeekCap = dueKey && Object.prototype.hasOwnProperty.call(center.capacityByWeek, dueKey)
+          ? center.capacityByWeek[dueKey]
+          : center.weeklyCapacity;
+        const dueWeekOver = dueKey && Object.prototype.hasOwnProperty.call(center.loadByWeek, dueKey)
+          ? dueWeekLoad > dueWeekCap + 1e-9
+          : false;
+        const overdue = isOverdue(wo, from);
+        const alone = fitsAlone(wo, center.weeklyCapacity, weekStartsOn, from, center.capacityByWeek);
+        if (overdue || dueWeekOver || !alone) {
+          atRisk.push({
+            wo,
+            workCenter: center,
+            overdue,
+            dueWeekOver,
+            fitsAlone: alone
+          });
+        }
+      }
+    }
+
+    return {
+      weeks,
+      centers,
+      totals,
+      unassigned,
+      atRisk,
+      absences,
+      loadMode,
+      weekStartsOn,
+      asOf: parseDate(from)
+    };
+  }
+
+  return {
+    parseDate,
+    formatISO,
+    formatShort,
+    formatHours,
+    formatUtil,
+    startOfWeek,
+    addDays,
+    weekKey,
+    weekLabel,
+    planningWeeks,
+    workDays,
+    hoursPerWorkDay,
+    effectiveWeeklyHours,
+    isWeekday,
+    isWeekend,
+    countsWeekends,
+    isCountableDay,
+    weekdayCount,
+    remainingHours,
+    isOpen,
+    isOverdue,
+    weeksUntilDue,
+    weeklyCapacityByCenter,
+    headcountByCenter,
+    utilization,
+    utilLevel,
+    distributeHours,
+    fitsAlone,
+    absenceHoursInWeek,
+    timeOffHoursForPerson,
+    personWeekBreakdown,
+    upcomingAbsence,
+    weekCapacityMaps,
+    summarize
+  };
+});
+
+;
+/**
+ * Browser persistence: localStorage plus JSON import/export.
+ */
+(function (root) {
+  const STORAGE_KEY = "capacity-tracker.v1";
+  const SETTINGS_KEY = "capacity-tracker.settings.v1";
+
+  const DEFAULT_SETTINGS = {
+    siteName: "Shop floor",
+    planningWeeks: 8,
+    weekStartsOn: 1,
+    loadMode: "due-week",
+    storage: "local",
+    sharepointSiteUrl: "",
+    listWorkCenters: "CT Work Centers",
+    listPeople: "CT People",
+    listWorkOrders: "CT Work Orders",
+    listAbsences: "CT Time Off"
+  };
+
+  function uid(prefix) {
+    const rand = Math.random().toString(36).slice(2, 8);
+    return `${prefix}_${Date.now().toString(36)}_${rand}`;
+  }
+
+  function emptyData() {
+    return {
+      version: 1,
+      workCenters: [],
+      people: [],
+      workOrders: [],
+      absences: []
+    };
+  }
+
+  function clone(value) {
+    return JSON.parse(JSON.stringify(value));
+  }
+
+  const memoryStore = Object.create(null);
+
+  function storageGet(key) {
+    try {
+      if (typeof localStorage !== "undefined") return localStorage.getItem(key);
+    } catch (err) {
+      /* iframe or locked-down SharePoint can block storage */
+    }
+    return Object.prototype.hasOwnProperty.call(memoryStore, key) ? memoryStore[key] : null;
+  }
+
+  function storageSet(key, text) {
+    try {
+      if (typeof localStorage !== "undefined") {
+        localStorage.setItem(key, text);
+        return;
+      }
+    } catch (err) {
+      /* fall through to memory */
+    }
+    memoryStore[key] = text;
+  }
+
+  function readJson(key, fallback) {
+    try {
+      const raw = storageGet(key);
+      if (!raw) return clone(fallback);
+      return JSON.parse(raw);
+    } catch (err) {
+      console.warn("Capacity Tracker: could not read storage", err);
+      return clone(fallback);
+    }
+  }
+
+  function writeJson(key, value) {
+    storageSet(key, JSON.stringify(value));
+  }
+
+  function normalizeSettings(raw) {
+    const merged = Object.assign({}, DEFAULT_SETTINGS, raw || {});
+    merged.planningWeeks = Math.min(16, Math.max(4, Number(merged.planningWeeks) || 8));
+    merged.weekStartsOn = Number(merged.weekStartsOn) === 0 ? 0 : 1;
+    merged.loadMode = merged.loadMode === "spread" ? "spread" : "due-week";
+    merged.storage = merged.storage === "sharepoint" ? "sharepoint" : "local";
+    merged.siteName = String(merged.siteName || DEFAULT_SETTINGS.siteName);
+    merged.sharepointSiteUrl = String(merged.sharepointSiteUrl || "");
+    merged.listWorkCenters = String(merged.listWorkCenters || DEFAULT_SETTINGS.listWorkCenters);
+    merged.listPeople = String(merged.listPeople || DEFAULT_SETTINGS.listPeople);
+    merged.listWorkOrders = String(merged.listWorkOrders || DEFAULT_SETTINGS.listWorkOrders);
+    merged.listAbsences = String(merged.listAbsences || DEFAULT_SETTINGS.listAbsences);
+    return merged;
+  }
+
+  function normalizeData(raw) {
+    const data = emptyData();
+    if (!raw || typeof raw !== "object") return data;
+    data.workCenters = Array.isArray(raw.workCenters) ? raw.workCenters.map(normalizeCenter) : [];
+    data.people = Array.isArray(raw.people) ? raw.people.map(normalizePerson) : [];
+    data.workOrders = Array.isArray(raw.workOrders) ? raw.workOrders.map(normalizeOrder) : [];
+    data.absences = Array.isArray(raw.absences) ? raw.absences.map(normalizeAbsence) : [];
+    return data;
+  }
+
+  function normalizeColor(value) {
+    const s = String(value || "").trim();
+    return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(s) ? s : "#1f6f6a";
+  }
+
+  function normalizeCenter(item) {
+    return {
+      id: String(item.id || uid("wc")),
+      name: String(item.name || "Untitled work center"),
+      notes: String(item.notes || ""),
+      color: normalizeColor(item.color)
+    };
+  }
+
+  function normalizePerson(item) {
+    const workDays = Number(item.workDays);
+    return {
+      id: String(item.id || uid("p")),
+      name: String(item.name || "Unnamed"),
+      workCenterId: item.workCenterId ? String(item.workCenterId) : "",
+      hoursPerWeek: Number(item.hoursPerWeek) || 0,
+      workDays: workDays >= 1 && workDays <= 7 ? workDays : 5,
+      worksWeekends: Boolean(item.worksWeekends),
+      efficiency: item.efficiency == null || item.efficiency === "" ? 100 : Number(item.efficiency),
+      notes: String(item.notes || "")
+    };
+  }
+
+  function normalizeAbsenceType(value) {
+    const allowed = ["pto", "sick", "other"];
+    return allowed.includes(value) ? value : "pto";
+  }
+
+  function normalizeAbsence(item) {
+    const start = item.startDate ? String(item.startDate).slice(0, 10) : "";
+    let end = item.endDate ? String(item.endDate).slice(0, 10) : start;
+    if (start && end && end < start) end = start;
+    return {
+      id: String(item.id || uid("abs")),
+      personId: item.personId ? String(item.personId) : "",
+      type: normalizeAbsenceType(item.type),
+      startDate: start,
+      endDate: end,
+      hours:
+        item.hours === null || item.hours === undefined || item.hours === ""
+          ? ""
+          : Number(item.hours),
+      includeWeekends: Boolean(item.includeWeekends),
+      notes: String(item.notes || "")
+    };
+  }
+
+  function normalizeOrder(item) {
+    return {
+      id: String(item.id || uid("wo")),
+      number: String(item.number || ""),
+      title: String(item.title || ""),
+      workCenterId: item.workCenterId ? String(item.workCenterId) : "",
+      hours: Number(item.hours) || 0,
+      remainingHours:
+        item.remainingHours === null || item.remainingHours === undefined || item.remainingHours === ""
+          ? Number(item.hours) || 0
+          : Number(item.remainingHours) || 0,
+      dueDate: item.dueDate ? String(item.dueDate).slice(0, 10) : "",
+      status: normalizeStatus(item.status),
+      priority: normalizePriority(item.priority),
+      notes: String(item.notes || "")
+    };
+  }
+
+  function normalizeStatus(value) {
+    const allowed = ["queued", "in-progress", "on-hold", "complete"];
+    return allowed.includes(value) ? value : "queued";
+  }
+
+  function normalizePriority(value) {
+    const allowed = ["high", "medium", "low"];
+    return allowed.includes(value) ? value : "medium";
+  }
+
+  const LocalStore = {
+    loadSettings() {
+      return normalizeSettings(readJson(SETTINGS_KEY, DEFAULT_SETTINGS));
+    },
+    saveSettings(settings) {
+      const next = normalizeSettings(settings);
+      writeJson(SETTINGS_KEY, next);
+      return next;
+    },
+    load() {
+      return normalizeData(readJson(STORAGE_KEY, emptyData()));
+    },
+    save(data) {
+      const next = normalizeData(data);
+      writeJson(STORAGE_KEY, next);
+      return next;
+    },
+    clear() {
+      localStorage.removeItem(STORAGE_KEY);
+    }
+  };
+
+  function download(filename, text, type) {
+    const blob = new Blob([text], { type: type || "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function csvEscape(value) {
+    const s = value == null ? "" : String(value);
+    if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+    return s;
+  }
+
+  function toCsv(rows) {
+    return rows.map((row) => row.map(csvEscape).join(",")).join("\r\n") + "\r\n";
+  }
+
+  function stamp() {
+    const d = new Date();
+    const p = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
+  }
+
+  function nextWorkOrderNumber(orders) {
+    let max = 1000;
+    for (const wo of orders || []) {
+      const match = String(wo.number || "").match(/(\d+)\s*$/);
+      if (match) max = Math.max(max, Number(match[1]));
+    }
+    return `WO-${max + 1}`;
+  }
+
+  const COLORS = ["#1f6f6a", "#1d4e89", "#8a3b12", "#6b4c9a", "#3d5a40", "#9a3412", "#0f4c5c", "#7a2f4b"];
+
+  function nextColor(centers) {
+    return COLORS[(centers || []).length % COLORS.length];
+  }
+
+  function addDaysIso(iso, days) {
+    const d = CapacityCalc.parseDate(iso) || new Date();
+    return CapacityCalc.formatISO(CapacityCalc.addDays(d, days));
+  }
+
+  function demoData(from) {
+    const today = CapacityCalc.formatISO(from || new Date());
+    const wc = [
+      { id: "wc_laser", name: "Laser / Burn", notes: "Table 1 & 2", color: "#1d4e89" },
+      { id: "wc_brake", name: "Press Brake", notes: "120-ton", color: "#6b4c9a" },
+      { id: "wc_weld", name: "Welding", notes: "MIG / TIG booths", color: "#8a3b12" },
+      { id: "wc_assy", name: "Assembly", notes: "Final build", color: "#1f6f6a" },
+      { id: "wc_paint", name: "Paint / Finish", notes: "Booth A", color: "#0f4c5c" }
+    ];
+    const people = [
+      { id: "p1", name: "Maya Chen", workCenterId: "wc_laser", hoursPerWeek: 40, workDays: 5, efficiency: 90, notes: "" },
+      { id: "p2", name: "Luis Ortega", workCenterId: "wc_laser", hoursPerWeek: 40, workDays: 5, efficiency: 85, notes: "" },
+      { id: "p3", name: "Priya Shah", workCenterId: "wc_brake", hoursPerWeek: 40, workDays: 5, efficiency: 95, notes: "" },
+      { id: "p4", name: "Chris Nguyen", workCenterId: "wc_weld", hoursPerWeek: 40, workDays: 5, efficiency: 90, notes: "" },
+      { id: "p5", name: "Dana Brooks", workCenterId: "wc_weld", hoursPerWeek: 40, workDays: 5, efficiency: 80, notes: "" },
+      { id: "p6", name: "Omar Haddad", workCenterId: "wc_weld", hoursPerWeek: 32, workDays: 4, efficiency: 85, notes: "4-day week" },
+      { id: "p7", name: "Elena Rossi", workCenterId: "wc_assy", hoursPerWeek: 40, workDays: 5, efficiency: 100, notes: "" },
+      { id: "p8", name: "James Okoye", workCenterId: "wc_assy", hoursPerWeek: 20, workDays: 5, efficiency: 100, notes: "Part-time" },
+      { id: "p9", name: "Hannah Kim", workCenterId: "wc_paint", hoursPerWeek: 48, workDays: 6, worksWeekends: true, efficiency: 85, notes: "Works Saturdays" },
+      { id: "p10", name: "Riley Cole", workCenterId: "", hoursPerWeek: 40, workDays: 5, efficiency: 100, notes: "New hire — not assigned yet" }
+    ];
+    const absences = [
+      { id: "abs1", personId: "p4", type: "sick", startDate: addDaysIso(today, 1), endDate: addDaysIso(today, 1), hours: "", notes: "Flu" },
+      { id: "abs2", personId: "p1", type: "pto", startDate: addDaysIso(today, 7), endDate: addDaysIso(today, 9), hours: "", notes: "Long weekend" },
+      { id: "abs3", personId: "p7", type: "pto", startDate: addDaysIso(today, 14), endDate: addDaysIso(today, 18), hours: "", notes: "Vacation" },
+      { id: "abs4", personId: "p3", type: "other", startDate: addDaysIso(today, 3), endDate: addDaysIso(today, 3), hours: 4, notes: "School conference, half day" },
+      { id: "abs5", personId: "p9", type: "pto", startDate: addDaysIso(today, 5), endDate: addDaysIso(today, 6), hours: "", includeWeekends: true, notes: "Weekend off" }
+    ];
+    const workOrders = [
+      { id: "wo1", number: "WO-1041", title: "Frame kit — Northline", workCenterId: "wc_laser", hours: 28, remainingHours: 28, dueDate: addDaysIso(today, 2), status: "in-progress", priority: "high", notes: "" },
+      { id: "wo2", number: "WO-1042", title: "Guard panels", workCenterId: "wc_laser", hours: 36, remainingHours: 36, dueDate: addDaysIso(today, 4), status: "queued", priority: "medium", notes: "" },
+      { id: "wo3", number: "WO-1044", title: "Hopper sides", workCenterId: "wc_brake", hours: 18, remainingHours: 10, dueDate: addDaysIso(today, 3), status: "in-progress", priority: "high", notes: "" },
+      { id: "wo4", number: "WO-1045", title: "Skid weldment", workCenterId: "wc_weld", hours: 60, remainingHours: 60, dueDate: addDaysIso(today, 5), status: "queued", priority: "high", notes: "Customer hold lifted" },
+      { id: "wo5", number: "WO-1046", title: "Handrail lot", workCenterId: "wc_weld", hours: 24, remainingHours: 24, dueDate: addDaysIso(today, 8), status: "queued", priority: "medium", notes: "" },
+      { id: "wo6", number: "WO-1048", title: "Cart assembly", workCenterId: "wc_assy", hours: 16, remainingHours: 16, dueDate: addDaysIso(today, 6), status: "queued", priority: "medium", notes: "" },
+      { id: "wo7", number: "WO-1033", title: "Repair — mixer lid", workCenterId: "wc_weld", hours: 12, remainingHours: 8, dueDate: addDaysIso(today, -2), status: "in-progress", priority: "high", notes: "Already late" },
+      { id: "wo8", number: "WO-1049", title: "Enclosures — 6 ea", workCenterId: "wc_paint", hours: 22, remainingHours: 22, dueDate: addDaysIso(today, 11), status: "queued", priority: "low", notes: "" },
+      { id: "wo9", number: "WO-1050", title: "Platform weldment", workCenterId: "wc_weld", hours: 48, remainingHours: 48, dueDate: addDaysIso(today, 12), status: "queued", priority: "medium", notes: "" },
+      { id: "wo10", number: "WO-1051", title: "Control box build", workCenterId: "wc_assy", hours: 30, remainingHours: 30, dueDate: addDaysIso(today, 14), status: "queued", priority: "medium", notes: "" },
+      { id: "wo11", number: "WO-1028", title: "Bracket lot", workCenterId: "wc_brake", hours: 14, remainingHours: 0, dueDate: addDaysIso(today, -5), status: "complete", priority: "low", notes: "" },
+      { id: "wo12", number: "WO-1052", title: "Tank wrappers", workCenterId: "wc_laser", hours: 40, remainingHours: 40, dueDate: addDaysIso(today, 18), status: "queued", priority: "medium", notes: "" },
+      { id: "wo13", number: "WO-1055", title: "Stair stringers", workCenterId: "wc_brake", hours: 26, remainingHours: 26, dueDate: addDaysIso(today, 21), status: "queued", priority: "high", notes: "" },
+      { id: "wo14", number: "WO-1056", title: "Mezzanine rails", workCenterId: "wc_weld", hours: 70, remainingHours: 70, dueDate: addDaysIso(today, 25), status: "on-hold", priority: "low", notes: "Waiting on steel" }
+    ];
+    return normalizeData({ version: 1, workCenters: wc, people, workOrders, absences });
+  }
+
+  root.CapacityStore = {
+    STORAGE_KEY,
+    DEFAULT_SETTINGS,
+    uid,
+    emptyData,
+    clone,
+    normalizeData,
+    normalizeSettings,
+    normalizeCenter,
+    normalizePerson,
+    normalizeOrder,
+    normalizeAbsence,
+    LocalStore,
+    download,
+    toCsv,
+    stamp,
+    nextWorkOrderNumber,
+    nextColor,
+    demoData
+  };
+})(typeof globalThis !== "undefined" ? globalThis : this);
+
+;
+/**
+ * SharePoint REST adapter. Same-origin only (Site Assets / embedded page
+ * on the SharePoint site). Uses the signed-in user's cookies.
+ */
+(function (root) {
+  function detectSiteUrl() {
+    const path = location.pathname || "";
+    const site = path.match(/^(.*?\/(?:sites|teams)\/[^/]+)/i);
+    if (site) return location.origin + site[1];
+    if (/sharepoint\./i.test(location.hostname)) return location.origin;
+    return "";
+  }
+
+  function isSharePointHost() {
+    return /sharepoint\./i.test(location.hostname || "");
+  }
+
+  function joinUrl(siteUrl, path) {
+    return String(siteUrl || "").replace(/\/+$/, "") + path;
+  }
+
+  function listUrl(siteUrl, listTitle, suffix) {
+    const title = encodeURIComponent(listTitle);
+    return joinUrl(siteUrl, `/_api/web/lists/getbytitle('${title}')${suffix || ""}`);
+  }
+
+  async function parseBody(response) {
+    const text = await response.text();
+    if (!text) return {};
+    try {
+      return JSON.parse(text);
+    } catch (err) {
+      return { raw: text };
+    }
+  }
+
+  function errorMessage(payload, status) {
+    if (payload && payload.error && payload.error.message) {
+      const msg = payload.error.message;
+      return typeof msg === "string" ? msg : msg.value || `SharePoint error ${status}`;
+    }
+    if (payload && payload["odata.error"] && payload["odata.error"].message) {
+      return payload["odata.error"].message.value || `SharePoint error ${status}`;
+    }
+    return `SharePoint request failed (${status})`;
+  }
+
+  function SharePointStore(settings) {
+    this.settings = settings;
+    this.digest = null;
+    this.digestAt = 0;
+  }
+
+  SharePointStore.prototype.siteUrl = function () {
+    return (this.settings.sharepointSiteUrl || detectSiteUrl() || "").replace(/\/+$/, "");
+  };
+
+  SharePointStore.prototype.headers = function (digest, extra) {
+    const headers = {
+      Accept: "application/json;odata=nometadata",
+      "Content-Type": "application/json;odata=nometadata",
+      "OData-Version": "4.0"
+    };
+    if (digest) headers["X-RequestDigest"] = digest;
+    return Object.assign(headers, extra || {});
+  };
+
+  SharePointStore.prototype.request = async function (url, options) {
+    const response = await fetch(url, options);
+    const payload = await parseBody(response);
+    if (!response.ok) {
+      throw new Error(errorMessage(payload, response.status));
+    }
+    return payload;
+  };
+
+  SharePointStore.prototype.getDigest = async function () {
+    const now = Date.now();
+    if (this.digest && now - this.digestAt < 20 * 60 * 1000) return this.digest;
+    const payload = await this.request(joinUrl(this.siteUrl(), "/_api/contextinfo"), {
+      method: "POST",
+      headers: this.headers(),
+      credentials: "same-origin"
+    });
+    this.digest = payload.FormDigestValue || payload.formDigestValue;
+    this.digestAt = now;
+    if (!this.digest) throw new Error("SharePoint did not return a request digest.");
+    return this.digest;
+  };
+
+  SharePointStore.prototype.getItems = async function (listTitle) {
+    const items = [];
+    let url = listUrl(this.siteUrl(), listTitle, "/items?$top=2000");
+    while (url) {
+      const payload = await this.request(url, {
+        method: "GET",
+        headers: this.headers(),
+        credentials: "same-origin"
+      });
+      const page = Array.isArray(payload.value) ? payload.value : [];
+      items.push.apply(items, page);
+      url = payload["@odata.nextLink"] || payload["odata.nextLink"] || "";
+    }
+    return items;
+  };
+
+  function compactFields(fields) {
+    const out = {};
+    Object.keys(fields).forEach((key) => {
+      if (fields[key] !== null && fields[key] !== undefined) out[key] = fields[key];
+    });
+    return out;
+  }
+
+  SharePointStore.prototype.createItem = async function (listTitle, fields) {
+    const digest = await this.getDigest();
+    return this.request(listUrl(this.siteUrl(), listTitle, "/items"), {
+      method: "POST",
+      headers: this.headers(digest),
+      credentials: "same-origin",
+      body: JSON.stringify(compactFields(fields))
+    });
+  };
+
+  SharePointStore.prototype.updateItem = async function (listTitle, id, fields) {
+    const digest = await this.getDigest();
+    return this.request(listUrl(this.siteUrl(), listTitle, `/items(${id})`), {
+      method: "POST",
+      headers: this.headers(digest, {
+        "IF-MATCH": "*",
+        "X-HTTP-Method": "MERGE"
+      }),
+      credentials: "same-origin",
+      body: JSON.stringify(compactFields(fields))
+    });
+  };
+
+  SharePointStore.prototype.deleteItem = async function (listTitle, id) {
+    const digest = await this.getDigest();
+    return this.request(listUrl(this.siteUrl(), listTitle, `/items(${id})`), {
+      method: "POST",
+      headers: this.headers(digest, {
+        "IF-MATCH": "*",
+        "X-HTTP-Method": "DELETE"
+      }),
+      credentials: "same-origin"
+    });
+  };
+
+  SharePointStore.prototype.upsert = async function (listTitle, record, fields) {
+    if (record.id && /^\d+$/.test(String(record.id))) {
+      await this.updateItem(listTitle, record.id, fields);
+      return String(record.id);
+    }
+    const created = await this.createItem(listTitle, fields);
+    return String(created.Id || created.ID);
+  };
+
+  SharePointStore.prototype.test = async function () {
+    const site = this.siteUrl();
+    if (!site) throw new Error("Enter the SharePoint site URL first (https://tenant.sharepoint.com/sites/yoursite).");
+    await this.getDigest();
+    const lists = [
+      this.settings.listWorkCenters,
+      this.settings.listPeople,
+      this.settings.listWorkOrders,
+      this.settings.listAbsences
+    ].filter(Boolean);
+    for (const title of lists) {
+      await this.request(listUrl(site, title, "?$select=Title,ItemCount"), {
+        method: "GET",
+        headers: this.headers(),
+        credentials: "same-origin"
+      });
+    }
+    return { site, lists };
+  };
+
+  function mapCenter(item) {
+    return {
+      id: String(item.Id),
+      name: item.Title || "",
+      notes: item.Notes || "",
+      color: item.Color || "#1f6f6a"
+    };
+  }
+
+  function mapPerson(item) {
+    return {
+      id: String(item.Id),
+      name: item.Title || "",
+      workCenterId: item.WorkCenterId ? String(item.WorkCenterId) : "",
+      hoursPerWeek: Number(item.HoursPerWeek) || 0,
+      workDays: item.WorkDays == null ? 5 : Number(item.WorkDays),
+      worksWeekends: Boolean(item.WorksWeekends),
+      efficiency: item.Efficiency == null ? 100 : Number(item.Efficiency),
+      notes: item.Notes || ""
+    };
+  }
+
+  function mapAbsence(item) {
+    return {
+      id: String(item.Id),
+      personId: item.PersonId ? String(item.PersonId) : "",
+      type: item.AbsenceType || item.Type || "pto",
+      startDate: item.StartDate ? String(item.StartDate).slice(0, 10) : "",
+      endDate: item.EndDate ? String(item.EndDate).slice(0, 10) : "",
+      hours: item.Hours == null || Number(item.Hours) === 0 ? "" : Number(item.Hours),
+      includeWeekends: Boolean(item.IncludeWeekends),
+      notes: item.Notes || ""
+    };
+  }
+
+  function mapOrder(item) {
+    const due = item.DueDate ? String(item.DueDate).slice(0, 10) : "";
+    return {
+      id: String(item.Id),
+      number: item.Title || "",
+      title: item.JobName || "",
+      workCenterId: item.WorkCenterId ? String(item.WorkCenterId) : "",
+      hours: Number(item.Hours) || 0,
+      remainingHours: item.RemainingHours == null ? Number(item.Hours) || 0 : Number(item.RemainingHours) || 0,
+      dueDate: due,
+      status: item.Status || "queued",
+      priority: item.Priority || "medium",
+      notes: item.Notes || ""
+    };
+  }
+
+  function centerName(data, id) {
+    const wc = (data.workCenters || []).find((c) => String(c.id) === String(id));
+    return wc ? wc.name : "";
+  }
+
+  SharePointStore.prototype.load = async function () {
+    const [centers, people, orders, absences] = await Promise.all([
+      this.getItems(this.settings.listWorkCenters),
+      this.getItems(this.settings.listPeople),
+      this.getItems(this.settings.listWorkOrders),
+      this.getItems(this.settings.listAbsences)
+    ]);
+    return CapacityStore.normalizeData({
+      version: 1,
+      workCenters: centers.map(mapCenter),
+      people: people.map(mapPerson),
+      workOrders: orders.map(mapOrder),
+      absences: absences.map(mapAbsence)
+    });
+  };
+
+  SharePointStore.prototype.saveCenter = async function (center) {
+    const id = await this.upsert(this.settings.listWorkCenters, center, {
+      Title: center.name,
+      Notes: center.notes || "",
+      Color: center.color || "#1f6f6a"
+    });
+    return Object.assign({}, center, { id });
+  };
+
+  SharePointStore.prototype.savePerson = async function (person, data) {
+    const id = await this.upsert(this.settings.listPeople, person, {
+      Title: person.name,
+      WorkCenterId: person.workCenterId ? Number(person.workCenterId) || null : null,
+      WorkCenterName: centerName(data, person.workCenterId),
+      HoursPerWeek: Number(person.hoursPerWeek) || 0,
+      WorkDays: Number(person.workDays) || 5,
+      WorksWeekends: Boolean(person.worksWeekends),
+      Efficiency: person.efficiency == null ? 100 : Number(person.efficiency),
+      Notes: person.notes || ""
+    });
+    return Object.assign({}, person, { id });
+  }
+
+  function personName(data, id) {
+    const person = (data.people || []).find((p) => String(p.id) === String(id));
+    return person ? person.name : "";
+  }
+
+  SharePointStore.prototype.saveAbsence = async function (absence, data) {
+    const start = absence.startDate ? `${absence.startDate}T00:00:00` : null;
+    const end = absence.endDate ? `${absence.endDate}T00:00:00` : start;
+    const fields = {
+      Title: `${absence.type || "pto"} ${absence.startDate || ""}`.trim(),
+      PersonId: absence.personId ? Number(absence.personId) || null : null,
+      PersonName: personName(data, absence.personId),
+      AbsenceType: absence.type || "pto",
+      StartDate: start,
+      EndDate: end,
+      IncludeWeekends: Boolean(absence.includeWeekends),
+      Notes: absence.notes || ""
+    };
+    fields.Hours = absence.hours === "" || absence.hours == null ? 0 : Number(absence.hours);
+    const id = await this.upsert(this.settings.listAbsences, absence, fields);
+    return Object.assign({}, absence, { id });
+  };
+
+  SharePointStore.prototype.saveOrder = async function (order, data) {
+    const due = order.dueDate ? `${order.dueDate}T00:00:00` : null;
+    const id = await this.upsert(this.settings.listWorkOrders, order, {
+      Title: order.number,
+      JobName: order.title || "",
+      WorkCenterId: order.workCenterId ? Number(order.workCenterId) || null : null,
+      WorkCenterName: centerName(data, order.workCenterId),
+      Hours: Number(order.hours) || 0,
+      RemainingHours: Number(order.remainingHours) || 0,
+      DueDate: due,
+      Status: order.status || "queued",
+      Priority: order.priority || "medium",
+      Notes: order.notes || ""
+    });
+    return Object.assign({}, order, { id });
+  };
+
+  SharePointStore.prototype.deleteCenter = async function (id) {
+    if (!/^\d+$/.test(String(id))) return;
+    await this.deleteItem(this.settings.listWorkCenters, id);
+  };
+
+  SharePointStore.prototype.deletePerson = async function (id) {
+    if (!/^\d+$/.test(String(id))) return;
+    await this.deleteItem(this.settings.listPeople, id);
+  };
+
+  SharePointStore.prototype.deleteOrder = async function (id) {
+    if (!/^\d+$/.test(String(id))) return;
+    await this.deleteItem(this.settings.listWorkOrders, id);
+  };
+
+  SharePointStore.prototype.deleteAbsence = async function (id) {
+    if (!/^\d+$/.test(String(id))) return;
+    await this.deleteItem(this.settings.listAbsences, id);
+  };
+
+  SharePointStore.prototype.replaceAll = async function (data) {
+    const current = await this.load();
+    for (const absence of current.absences || []) await this.deleteAbsence(absence.id);
+    for (const wo of current.workOrders) await this.deleteOrder(wo.id);
+    for (const person of current.people) await this.deletePerson(person.id);
+    for (const wc of current.workCenters) await this.deleteCenter(wc.id);
+
+    const idMap = Object.create(null);
+    const personMap = Object.create(null);
+    const next = CapacityStore.emptyData();
+    for (const wc of data.workCenters) {
+      const saved = await this.saveCenter(Object.assign({}, wc, { id: "" }));
+      idMap[String(wc.id)] = saved.id;
+      next.workCenters.push(saved);
+    }
+    const mapped = { workCenters: next.workCenters, people: [], workOrders: [], absences: [] };
+    for (const person of data.people) {
+      const saved = await this.savePerson(
+        Object.assign({}, person, {
+          id: "",
+          workCenterId: idMap[String(person.workCenterId)] || ""
+        }),
+        mapped
+      );
+      personMap[String(person.id)] = saved.id;
+      next.people.push(saved);
+      mapped.people = next.people;
+    }
+    for (const wo of data.workOrders) {
+      const saved = await this.saveOrder(
+        Object.assign({}, wo, {
+          id: "",
+          workCenterId: idMap[String(wo.workCenterId)] || ""
+        }),
+        mapped
+      );
+      next.workOrders.push(saved);
+    }
+    for (const absence of data.absences || []) {
+      const saved = await this.saveAbsence(
+        Object.assign({}, absence, {
+          id: "",
+          personId: personMap[String(absence.personId)] || ""
+        }),
+        mapped
+      );
+      next.absences.push(saved);
+    }
+    return next;
+  };
+
+  root.CapacitySharePoint = {
+    detectSiteUrl,
+    isSharePointHost,
+    SharePointStore
+  };
+})(typeof globalThis !== "undefined" ? globalThis : this);
+
+;
 (function () {
   function bootFailed(err) {
     const host = document.getElementById("app") || document.body;
@@ -1575,3 +3502,7 @@
     Promise.resolve(boot()).catch(bootFailed);
   }
 })();
+
+  </script>
+</body>
+</html>
