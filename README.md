@@ -47,7 +47,8 @@ Step-by-step: [sharepoint/README.md](sharepoint/README.md).
 
 | Path | Role |
 | --- | --- |
-| `index.html` / `index.aspx` | App shell (aspx is the SharePoint-friendly entry) |
+| `CapacityTracker.html` | Single-file app to upload to SharePoint Documents |
+| `index.html` / `index.aspx` | Local / multi-file shell |
 | `css/app.css` | Layout and theme |
 | `js/calc.js` | Capacity math |
 | `js/store.js` | Local save / import / sample data |

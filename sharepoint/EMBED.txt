@@ -1,6 +1,22 @@
 Capacity Tracker — SharePoint embed code
 ========================================
 
+USE THIS FILE IN THE EMBED (single file, no extra js/css):
+
+  CapacityTracker.html
+
+Upload that one file into capacity-main, then paste:
+
+<iframe src="https://fuseintegration.sharepoint.us/sites/Production/Shared%20Documents/capacity-main/CapacityTracker.html" width="100%" height="1000" style="border:0;"></iframe>
+
+index.html going blank means SharePoint loaded the page but blocked
+the separate js/ and css/ files. The single file fixes that.
+
+
+------------------------------------------------
+OLDER NOTES
+------------------------------------------------
+
 DO NOT use a link that contains  download.aspx
 That is a download ticket. It will 404 or download the file.
 Example of a BAD link:
