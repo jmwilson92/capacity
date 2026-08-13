@@ -1,0 +1,50 @@
+Capacity Tracker — SharePoint embed code
+========================================
+
+Copy ONE of the blocks below into the Embed web part
+(right-hand column: Website address or embed code).
+
+Use index.aspx, not index.html.
+The last line must be  ></iframe>   with no extra <
+
+
+------------------------------------------------
+IF THE FOLDER IS IN SITE ASSETS
+------------------------------------------------
+
+<iframe src="https://fuseintegration.sharepoint.us/sites/Production/SiteAssets/capacity-main/index.aspx" width="100%" height="1000" style="border:0;"></iframe>
+
+
+------------------------------------------------
+IF THE FOLDER IS IN DOCUMENTS
+------------------------------------------------
+
+<iframe src="https://fuseintegration.sharepoint.us/sites/Production/Shared%20Documents/capacity-main/index.aspx" width="100%" height="1000" style="border:0;"></iframe>
+
+
+------------------------------------------------
+HOW TO CHECK WHICH ONE IS RIGHT
+------------------------------------------------
+
+1. Open the Production site.
+2. Open the folder where you uploaded capacity-main.
+3. Click the three dots next to index.aspx.
+4. Copy link / open it in a new tab.
+
+If the address bar contains SiteAssets, use the first block.
+If it contains Shared Documents or Documents, use the second block.
+
+If that tab shows 404, the file is not at that path.
+If that tab downloads the file, do not use Embed.
+   Use a Quick links / Text web part and link to index.aspx instead.
+
+
+------------------------------------------------
+WRONG (this is what caused problems before)
+------------------------------------------------
+
+style="border:0;"<>/iframe>
+
+RIGHT:
+
+style="border:0;"></iframe>
