@@ -11,6 +11,8 @@
     weekStartsOn: 1,
     loadMode: "due-week",
     storage: "local",
+    teamApiKey: "",
+    teamBinId: "",
     sharepointSiteUrl: "",
     listWorkCenters: "CT Work Centers",
     listPeople: "CT People",
@@ -26,6 +28,7 @@
   function emptyData() {
     return {
       version: 1,
+      updatedAt: 0,
       workCenters: [],
       people: [],
       workOrders: [],
@@ -80,7 +83,9 @@
     merged.planningWeeks = Math.min(16, Math.max(4, Number(merged.planningWeeks) || 8));
     merged.weekStartsOn = Number(merged.weekStartsOn) === 0 ? 0 : 1;
     merged.loadMode = merged.loadMode === "spread" ? "spread" : "due-week";
-    merged.storage = merged.storage === "sharepoint" ? "sharepoint" : "local";
+    merged.storage = ["team", "sharepoint", "local"].indexOf(merged.storage) >= 0 ? merged.storage : "local";
+    merged.teamApiKey = String(merged.teamApiKey || "");
+    merged.teamBinId = String(merged.teamBinId || "");
     merged.siteName = String(merged.siteName || DEFAULT_SETTINGS.siteName);
     merged.sharepointSiteUrl = String(merged.sharepointSiteUrl || "");
     merged.listWorkCenters = String(merged.listWorkCenters || DEFAULT_SETTINGS.listWorkCenters);
@@ -97,6 +102,7 @@
     data.people = Array.isArray(raw.people) ? raw.people.map(normalizePerson) : [];
     data.workOrders = Array.isArray(raw.workOrders) ? raw.workOrders.map(normalizeOrder) : [];
     data.absences = Array.isArray(raw.absences) ? raw.absences.map(normalizeAbsence) : [];
+    data.updatedAt = Number(raw.updatedAt) || 0;
     return data;
   }
 

@@ -15,6 +15,7 @@
   <script src="js/calc.js"></script>
   <script src="js/store.js"></script>
   <script src="js/sharepoint.js"></script>
+  <script src="js/sync.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

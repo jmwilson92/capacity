@@ -41,10 +41,8 @@ Data stays in this browser until you export a JSON backup or connect SharePoint 
 
 Locked tenants (including `sharepoint.us`) will **download** HTML from Documents instead of running it. Shared data belongs in **SharePoint lists**, not in a file.
 
-1. Read [sharepoint/READ-THIS-FIRST.txt](sharepoint/READ-THIS-FIRST.txt).
-2. Create the four lists: run `sharepoint/New-CapacityLists.ps1`, or follow [sharepoint/CREATE-LISTS-IN-THE-BROWSER.txt](sharepoint/CREATE-LISTS-IN-THE-BROWSER.txt).
-3. Put those lists on one page (or run `sharepoint/New-CapacityPage.ps1`).
-4. To get the full planning-board UI on that page, send [sharepoint/IT-REQUEST.txt](sharepoint/IT-REQUEST.txt) to IT.
+For a downloaded HTML file that everyone shares live (no lists):
+see [sharepoint/LIVE-TEAM-BOARD.txt](sharepoint/LIVE-TEAM-BOARD.txt).
 
 ## Project layout
 
