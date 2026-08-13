@@ -17,8 +17,9 @@
   const Calc = window.CapacityCalc;
   const Store = window.CapacityStore;
   const SP = window.CapacitySharePoint;
-  if (!Calc || !Store || !SP) {
-    bootFailed(new Error("Required scripts did not load (CapacityCalc / CapacityStore / CapacitySharePoint)."));
+  const Sync = window.CapacitySync;
+  if (!Calc || !Store || !SP || !Sync) {
+    bootFailed(new Error("Required scripts did not load."));
     return;
   }
 
@@ -34,7 +35,11 @@
     toasts: [],
     busy: false,
     error: "",
-    repo: null
+    repo: null,
+    syncState: "off",
+    syncError: "",
+    pushTimer: 0,
+    pollTimer: 0
   };
 
   const VIEWS = [
@@ -125,7 +130,15 @@
   }
 
   function storageLabel() {
-    return state.settings.storage === "sharepoint" ? "SharePoint lists" : "This browser";
+    if (state.settings.storage === "team" && state.settings.teamBinId) {
+      return state.syncState === "live" ? "Live team board" : "Team board";
+    }
+    if (state.settings.storage === "sharepoint") return "SharePoint lists";
+    return "This browser only";
+  }
+
+  function teamEnabled() {
+    return state.settings.storage === "team" && state.settings.teamApiKey && state.settings.teamBinId;
   }
 
   function renderShell() {
@@ -823,12 +836,37 @@
           </form>
         </section>
         <section class="card">
+          <h3>Live team board</h3>
+          <p class="help">Everyone who opens this HTML file shares one board. New work orders show up on other computers in a few seconds. Keep the file on SharePoint and open the downloaded copy.</p>
+          <form class="form-grid" data-form="settings-team">
+            <label class="span-2">JSONBin master key
+              <input class="field" name="teamApiKey" type="password" autocomplete="off" value="${esc(s.teamApiKey)}" placeholder="Paste key from jsonbin.io">
+            </label>
+            <label class="span-2">Board ID
+              <input class="field" name="teamBinId" value="${esc(s.teamBinId)}" placeholder="Created for you when you start a board">
+            </label>
+            <div class="span-2 help">
+              1. Open jsonbin.io and create a free account.<br>
+              2. Copy API Keys → Master Key.<br>
+              3. Click <strong>Start shared board</strong>.<br>
+              4. Click <strong>Download team HTML</strong> and replace the file on SharePoint so everyone gets the same board.
+            </div>
+            <div class="span-2 row-actions">
+              <button class="btn primary" type="submit">Save &amp; connect</button>
+              <button class="btn" type="button" data-action="team-create">Start shared board</button>
+              <button class="btn" type="button" data-action="team-download">Download team HTML</button>
+            </div>
+            <div class="span-2 tiny muted">${s.teamBinId ? `Board ${esc(s.teamBinId)} · ${esc(state.syncState)}${state.syncError ? " · " + esc(state.syncError) : ""}` : "Not connected"}</div>
+          </form>
+        </section>
+        <section class="card">
           <h3>Data storage</h3>
           <form class="form-grid" data-form="settings-storage">
             <label class="span-2">Store data in
               <select class="field" name="storage">
-                <option value="local" ${s.storage === "local" ? "selected" : ""}>This browser (local)</option>
-                <option value="sharepoint" ${s.storage === "sharepoint" ? "selected" : ""}>SharePoint lists (shared)</option>
+                <option value="team" ${s.storage === "team" ? "selected" : ""}>Live team board (everyone)</option>
+                <option value="local" ${s.storage === "local" ? "selected" : ""}>This browser only</option>
+                <option value="sharepoint" ${s.storage === "sharepoint" ? "selected" : ""}>SharePoint lists</option>
               </select>
             </label>
             <label class="span-2">SharePoint site URL
@@ -1092,14 +1130,93 @@
   }
 
   function persistLocal() {
-    if (state.settings.storage === "local") {
-      Store.LocalStore.save(state.data);
-    }
+    state.data.updatedAt = Date.now();
+    Store.LocalStore.save(state.data);
+    if (teamEnabled()) queueTeamPush();
   }
 
   function persistSettings() {
     Store.LocalStore.saveSettings(state.settings);
     connectRepo();
+    startTeamPoll();
+  }
+
+  function queueTeamPush() {
+    if (!teamEnabled()) return;
+    window.clearTimeout(state.pushTimer);
+    state.pushTimer = window.setTimeout(function () {
+      pushTeam().catch(function (err) {
+        state.syncState = "error";
+        state.syncError = err.message || String(err);
+        toast(state.syncError, "error");
+      });
+    }, 400);
+  }
+
+  async function pushTeam() {
+    if (!teamEnabled()) return;
+    state.syncState = "saving";
+    await Sync.push(state.settings.teamApiKey, state.settings.teamBinId, state.data);
+    state.syncState = "live";
+    state.syncError = "";
+  }
+
+  async function pullTeam() {
+    if (!teamEnabled()) return null;
+    const remote = Store.normalizeData(await Sync.pull(state.settings.teamApiKey, state.settings.teamBinId));
+    state.syncState = "live";
+    state.syncError = "";
+    return remote;
+  }
+
+  function startTeamPoll() {
+    window.clearInterval(state.pollTimer);
+    if (!teamEnabled()) {
+      state.syncState = "off";
+      return;
+    }
+    state.pollTimer = window.setInterval(function () {
+      if (state.modal || state.busy) return;
+      pullTeam()
+        .then(function (remote) {
+          if (!remote) return;
+          if ((remote.updatedAt || 0) > (state.data.updatedAt || 0)) {
+            state.data = remote;
+            Store.LocalStore.save(state.data);
+            renderShell();
+          }
+        })
+        .catch(function (err) {
+          state.syncState = "error";
+          state.syncError = err.message || String(err);
+        });
+    }, 3000);
+  }
+
+  async function startSharedBoard() {
+    const key = state.settings.teamApiKey || ($("[name=teamApiKey]") && $("[name=teamApiKey]").value) || "";
+    if (!key) throw new Error("Paste your JSONBin master key first.");
+    state.settings.teamApiKey = key.trim();
+    state.data.updatedAt = Date.now();
+    const created = await Sync.create(state.settings.teamApiKey, state.data);
+    state.settings.teamBinId = created.id;
+    state.settings.storage = "team";
+    persistSettings();
+    Store.LocalStore.save(state.data);
+    state.syncState = "live";
+    toast("Shared board started. Download the team HTML and put it on SharePoint.");
+  }
+
+  function downloadTeamHtml() {
+    if (!state.settings.teamApiKey || !state.settings.teamBinId) {
+      throw new Error("Start a shared board first.");
+    }
+    const html = Sync.injectIntoHtml(document.documentElement.outerHTML, {
+      apiKey: state.settings.teamApiKey,
+      binId: state.settings.teamBinId
+    });
+    Store.download("CapacityTracker.html", "<!DOCTYPE html>\n" + html, "text/html;charset=utf-8");
+    toast("Upload this file to SharePoint. Everyone who opens it joins the same board.");
   }
 
   function connectRepo() {
@@ -1445,6 +1562,15 @@
     if (action === "import") return importJsonFile();
     if (action === "demo") return loadDemo();
     if (action === "reset") return resetAll();
+    if (action === "team-create") return withBusy(startSharedBoard);
+    if (action === "team-download") {
+      try {
+        downloadTeamHtml();
+      } catch (err) {
+        toast(err.message || String(err), "error");
+      }
+      return;
+    }
     if (action === "sp-test") return withBusy(testSharePoint);
     if (action === "sp-push") return withBusy(pushToSharePoint);
     if (action === "delete-center") return withBusy(() => removeCenter(id));
@@ -1467,6 +1593,27 @@
       persistSettings();
       toast("Planning settings saved");
       renderShell();
+      return;
+    }
+    if (kind === "settings-team") {
+      Object.assign(state.settings, {
+        teamApiKey: String(fields.teamApiKey || "").trim(),
+        teamBinId: String(fields.teamBinId || "").trim(),
+        storage: fields.teamBinId && fields.teamApiKey ? "team" : state.settings.storage
+      });
+      persistSettings();
+      await withBusy(async () => {
+        if (!teamEnabled()) throw new Error("Need both the master key and a board ID.");
+        const remote = await pullTeam();
+        if (remote && (remote.workCenters.length || remote.people.length || remote.workOrders.length)) {
+          state.data = remote;
+        } else {
+          state.data.updatedAt = Date.now();
+          await pushTeam();
+        }
+        Store.LocalStore.save(state.data);
+        toast("Connected to the live team board");
+      });
       return;
     }
     if (kind === "settings-storage") {
@@ -1547,13 +1694,29 @@
 
   async function boot() {
     state.settings = Store.LocalStore.loadSettings();
+    const baked = Sync.bakedConfig();
+    if (baked) {
+      state.settings.storage = "team";
+      state.settings.teamApiKey = baked.apiKey;
+      state.settings.teamBinId = baked.binId;
+      Store.LocalStore.saveSettings(state.settings);
+    }
     if (!state.settings.sharepointSiteUrl) {
       const detected = SP.detectSiteUrl();
       if (detected) state.settings.sharepointSiteUrl = detected;
     }
     connectRepo();
     try {
-      if (state.repo) {
+      if (teamEnabled()) {
+        const remote = await pullTeam();
+        state.data = remote && (remote.updatedAt || remote.workCenters.length || remote.workOrders.length)
+          ? remote
+          : Store.LocalStore.load();
+        if (!remote || !remote.updatedAt) {
+          state.data.updatedAt = Date.now();
+          await pushTeam();
+        }
+      } else if (state.repo) {
         state.data = await state.repo.load();
       } else {
         state.data = Store.LocalStore.load();
@@ -1561,9 +1724,10 @@
     } catch (err) {
       console.error(err);
       state.data = Store.LocalStore.load();
-      toast(`Could not load SharePoint data — using local copy. ${err.message}`, "error");
+      toast(`Could not load team data — using local copy. ${err.message}`, "error");
     }
     bindEvents();
+    startTeamPoll();
     renderShell();
   }
 
