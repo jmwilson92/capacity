@@ -1,0 +1,13 @@
+One-time setup so people do not hunt folders
+============================================
+
+Each person, once:
+
+1. File Explorer → Production - Documents → capacity-main
+2. Double-click  Put shortcut on Desktop.bat
+3. After that they only click  Capacity Tracker  on their Desktop.
+
+That icon starts the black window and opens the site.
+
+They still must leave the black window open while they work.
+First time only: Settings → Open existing team file → capacity-data.json
