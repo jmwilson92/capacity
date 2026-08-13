@@ -22,8 +22,12 @@ try {
   $listener.Start()
 }
 
-Write-Host "Capacity Tracker is running at $url"
-Write-Host "Leave this window open. Close it when you are done."
+Write-Host ""
+Write-Host "Capacity Tracker is running."
+Write-Host "  $url"
+Write-Host ""
+Write-Host "Leave this window open. Close it when you are finished."
+Write-Host ""
 Start-Process $url
 
 $mime = @{
