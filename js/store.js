@@ -14,6 +14,8 @@
     teamApiKey: "",
     teamBinId: "",
     sharepointSiteUrl: "",
+    clientId: "",
+    tenantId: "",
     listWorkCenters: "CT Work Centers",
     listPeople: "CT People",
     listWorkOrders: "CT Work Orders",
@@ -88,6 +90,8 @@
     merged.teamBinId = String(merged.teamBinId || "");
     merged.siteName = String(merged.siteName || DEFAULT_SETTINGS.siteName);
     merged.sharepointSiteUrl = String(merged.sharepointSiteUrl || "");
+    merged.clientId = String(merged.clientId || "");
+    merged.tenantId = String(merged.tenantId || "");
     merged.listWorkCenters = String(merged.listWorkCenters || DEFAULT_SETTINGS.listWorkCenters);
     merged.listPeople = String(merged.listPeople || DEFAULT_SETTINGS.listPeople);
     merged.listWorkOrders = String(merged.listWorkOrders || DEFAULT_SETTINGS.listWorkOrders);

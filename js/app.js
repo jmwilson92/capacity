@@ -18,7 +18,9 @@
   const Store = window.CapacityStore;
   const SP = window.CapacitySharePoint;
   const Sync = window.CapacitySync;
-  if (!Calc || !Store || !SP || !Sync) {
+  const Auth = window.CapacityAuth;
+  const Graph = window.CapacityGraph;
+  if (!Calc || !Store || !SP || !Sync || !Auth || !Graph) {
     bootFailed(new Error("Required scripts did not load."));
     return;
   }
@@ -39,7 +41,9 @@
     syncState: "off",
     syncError: "",
     pushTimer: 0,
-    pollTimer: 0
+    pollTimer: 0,
+    listPoll: 0,
+    signIn: null
   };
 
   const VIEWS = [
@@ -133,7 +137,9 @@
     if (state.settings.storage === "team" && state.settings.teamBinId) {
       return state.syncState === "live" ? "Live team board" : "Team board";
     }
-    if (state.settings.storage === "sharepoint") return "SharePoint lists";
+    if (state.settings.storage === "sharepoint") {
+      return Auth.hasToken() ? "SharePoint (signed in)" : "SharePoint (sign in)";
+    }
     return "This browser only";
   }
 
@@ -154,6 +160,13 @@
             </div>
           </div>
           <div class="top-actions">
+            ${
+              state.settings.storage === "sharepoint"
+                ? Auth.hasToken()
+                  ? `<button class="btn ghost" data-action="sp-signout">Sign out</button>`
+                  : `<button class="btn" data-action="sp-signin">Sign in to SharePoint</button>`
+                : ""
+            }
             <button class="btn ghost" data-action="export-json">Export</button>
             <button class="btn ghost" data-action="import">Import</button>
             <button class="btn primary" data-action="quick-add">New work order</button>
@@ -166,6 +179,7 @@
           }).join("")}
         </nav>
       </header>
+      ${sharePointBanner() ? `<div class="wrap" style="padding-bottom:0">${sharePointBanner()}</div>` : ""}
       <main class="wrap ${state.busy ? "busy" : ""}" id="main"></main>
       <div class="toasts" id="toasts"></div>
       <dialog id="modal"></dialog>
@@ -191,11 +205,18 @@
   }
 
   function sharePointBanner() {
-    if (state.settings.storage === "sharepoint" || !SP.isSharePointHost()) return "";
-    return `<div class="banner">
-      <span>This page is on SharePoint. Connect lists in Settings so everyone shares the same capacity numbers.</span>
-      <button class="btn small" data-action="view" data-view="settings">Open settings</button>
-    </div>`;
+    if (state.signIn) {
+      return `<div class="banner">
+        <span>Sign in: open <a href="${esc(state.signIn.verifyUrl)}" target="_blank" rel="noopener">${esc(state.signIn.verifyUrl)}</a> and enter <strong>${esc(state.signIn.userCode)}</strong></span>
+      </div>`;
+    }
+    if (state.settings.storage === "sharepoint" && !Auth.hasToken()) {
+      return `<div class="banner warn">
+        <span>This HTML page is the app. Data lives in SharePoint lists on Production. Sign in with your work account.</span>
+        <button class="btn small" data-action="sp-signin">Sign in</button>
+      </div>`;
+    }
+    return "";
   }
 
   function kpi(label, value, hint, level) {
@@ -211,8 +232,7 @@
     const t = s.totals;
     const empty = !state.data.workCenters.length;
     if (empty) {
-      return `${sharePointBanner()}
-        <section class="empty">
+      return `<section class="empty">
           <h3>No work centers yet</h3>
           <p>Create a work center, add employees on the roster, assign them to a center, then load work orders against that capacity.</p>
           <div class="filters" style="justify-content:center">
@@ -228,8 +248,7 @@
       .sort((a, b) => String(a.dueDate).localeCompare(String(b.dueDate)))
       .slice(0, 8);
 
-    return `${sharePointBanner()}
-      <div class="page-head">
+    return `<div class="page-head">
         <div>
           <h2>This week's capacity</h2>
           <p class="lede">${esc(s.weeks[0].label)} · hours land in the ${state.settings.loadMode === "spread" ? "weeks leading up to the due date" : "week of the due date"}.</p>
@@ -870,7 +889,13 @@
               </select>
             </label>
             <label class="span-2">SharePoint site URL
-              <input class="field" name="sharepointSiteUrl" placeholder="https://contoso.sharepoint.com/sites/ops" value="${esc(s.sharepointSiteUrl)}">
+              <input class="field" name="sharepointSiteUrl" placeholder="https://fuseintegration.sharepoint.us/sites/Production" value="${esc(s.sharepointSiteUrl)}">
+            </label>
+            <label>Application (client) ID
+              <input class="field" name="clientId" value="${esc(s.clientId)}" placeholder="From IT app registration">
+            </label>
+            <label>Directory (tenant) ID
+              <input class="field" name="tenantId" value="${esc(s.tenantId)}" placeholder="From IT, or leave blank">
             </label>
             <label>Work centers list
               <input class="field" name="listWorkCenters" value="${esc(s.listWorkCenters)}">
@@ -885,8 +910,8 @@
               <input class="field" name="listAbsences" value="${esc(s.listAbsences)}">
             </label>
             <div class="span-2 help">
-              Lists must exist first. Run <code>sharepoint/New-CapacityLists.ps1</code> on the site, then upload this folder to Site Assets and embed the page.
-              Shared lists only work when this app is served from the same SharePoint site.
+              Lists stay in your tenant. This HTML page is only the screen. Create the four CT lists on Production, get a client ID from IT (see sharepoint/IT-APP-REGISTRATION.txt), then Sign in.
+              Open the app with Start-CapacityTracker.bat so sign-in works (do not rely on double-click after you turn on SharePoint).
             </div>
             <div class="span-2 row-actions">
               <button class="btn primary" type="submit">Save storage</button>
@@ -1221,10 +1246,72 @@
 
   function connectRepo() {
     if (state.settings.storage === "sharepoint") {
-      state.repo = new SP.SharePointStore(state.settings);
+      state.repo = Auth.hasToken()
+        ? new Graph.GraphStore(state.settings, Auth)
+        : new SP.SharePointStore(state.settings);
     } else {
       state.repo = null;
     }
+    startListPoll();
+  }
+
+  function snapshotData(data) {
+    return JSON.stringify({
+      workCenters: data.workCenters,
+      people: data.people,
+      workOrders: data.workOrders,
+      absences: data.absences
+    });
+  }
+
+  function startListPoll() {
+    window.clearInterval(state.listPoll);
+    if (state.settings.storage !== "sharepoint" || !Auth.hasToken() || !state.repo || !state.repo.load) return;
+    state.listPoll = window.setInterval(function () {
+      if (state.modal || state.busy || state.signIn) return;
+      const before = snapshotData(state.data);
+      state.repo
+        .load()
+        .then(function (remote) {
+          if (state.modal || state.busy) return;
+          if (snapshotData(remote) !== before) {
+            state.data = remote;
+            Store.LocalStore.save(state.data);
+            renderShell();
+          }
+        })
+        .catch(function () {
+          /* keep last good copy */
+        });
+    }, 8000);
+  }
+
+  async function signInSharePoint() {
+    if (!state.settings.sharepointSiteUrl) {
+      state.settings.sharepointSiteUrl = "https://fuseintegration.sharepoint.us/sites/Production";
+    }
+    if (!state.settings.clientId) throw new Error("Paste the Application (client) ID in Settings first.");
+    const challenge = await Auth.requestDeviceCode(state.settings);
+    state.signIn = challenge;
+    renderShell();
+    try {
+      await Auth.waitForToken(challenge);
+      state.signIn = null;
+      state.settings.storage = "sharepoint";
+      persistSettings();
+      connectRepo();
+      state.data = await state.repo.load();
+      Store.LocalStore.save(state.data);
+      toast("Signed in. Using SharePoint lists on Production.");
+    } finally {
+      state.signIn = null;
+    }
+  }
+
+  function signOutSharePoint() {
+    Auth.signOut();
+    connectRepo();
+    toast("Signed out");
   }
 
   async function upsertList(list, item, saved) {
@@ -1571,6 +1658,12 @@
       }
       return;
     }
+    if (action === "sp-signin") return withBusy(signInSharePoint);
+    if (action === "sp-signout") {
+      signOutSharePoint();
+      renderShell();
+      return;
+    }
     if (action === "sp-test") return withBusy(testSharePoint);
     if (action === "sp-push") return withBusy(pushToSharePoint);
     if (action === "delete-center") return withBusy(() => removeCenter(id));
@@ -1620,6 +1713,8 @@
       Object.assign(state.settings, {
         storage: fields.storage,
         sharepointSiteUrl: fields.sharepointSiteUrl,
+        clientId: String(fields.clientId || "").trim(),
+        tenantId: String(fields.tenantId || "").trim(),
         listWorkCenters: fields.listWorkCenters,
         listPeople: fields.listPeople,
         listWorkOrders: fields.listWorkOrders,
@@ -1707,7 +1802,10 @@
     }
     connectRepo();
     try {
-      if (teamEnabled()) {
+      if (state.settings.storage === "sharepoint" && Auth.hasToken()) {
+        connectRepo();
+        state.data = await state.repo.load();
+      } else if (teamEnabled()) {
         const remote = await pullTeam();
         state.data = remote && (remote.updatedAt || remote.workCenters.length || remote.workOrders.length)
           ? remote
@@ -1716,8 +1814,6 @@
           state.data.updatedAt = Date.now();
           await pushTeam();
         }
-      } else if (state.repo) {
-        state.data = await state.repo.load();
       } else {
         state.data = Store.LocalStore.load();
       }

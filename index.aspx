@@ -16,6 +16,8 @@
   <script src="js/store.js"></script>
   <script src="js/sharepoint.js"></script>
   <script src="js/sync.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/graph.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

@@ -41,8 +41,8 @@ Data stays in this browser until you export a JSON backup or connect SharePoint 
 
 Locked tenants (including `sharepoint.us`) will **download** HTML from Documents instead of running it. Shared data belongs in **SharePoint lists**, not in a file.
 
-For a downloaded HTML file that everyone shares live (no lists):
-see [sharepoint/LIVE-TEAM-BOARD.txt](sharepoint/LIVE-TEAM-BOARD.txt).
+HTML screen + SharePoint lists (data stays in your tenant):
+see [sharepoint/HTML-PLUS-LISTS.txt](sharepoint/HTML-PLUS-LISTS.txt).
 
 ## Project layout
 
