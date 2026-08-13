@@ -18,6 +18,7 @@
   <script src="js/sync.js"></script>
   <script src="js/auth.js"></script>
   <script src="js/graph.js"></script>
+  <script src="js/filestore.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

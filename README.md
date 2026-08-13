@@ -41,8 +41,9 @@ Data stays in this browser until you export a JSON backup or connect SharePoint 
 
 Locked tenants (including `sharepoint.us`) will **download** HTML from Documents instead of running it. Shared data belongs in **SharePoint lists**, not in a file.
 
-HTML screen + SharePoint lists (data stays in your tenant):
-see [sharepoint/HTML-PLUS-LISTS.txt](sharepoint/HTML-PLUS-LISTS.txt).
+The HTML app cannot run as a live page inside SharePoint (tenant lock).
+Shared data without IT: put `capacity-data.json` in the same OneDrive-synced
+folder. See [sharepoint/TEAM-FILE.txt](sharepoint/TEAM-FILE.txt).
 
 ## Project layout
 

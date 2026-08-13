@@ -85,7 +85,7 @@
     merged.planningWeeks = Math.min(16, Math.max(4, Number(merged.planningWeeks) || 8));
     merged.weekStartsOn = Number(merged.weekStartsOn) === 0 ? 0 : 1;
     merged.loadMode = merged.loadMode === "spread" ? "spread" : "due-week";
-    merged.storage = ["team", "sharepoint", "local"].indexOf(merged.storage) >= 0 ? merged.storage : "local";
+    merged.storage = ["file", "team", "sharepoint", "local"].indexOf(merged.storage) >= 0 ? merged.storage : "local";
     merged.teamApiKey = String(merged.teamApiKey || "");
     merged.teamBinId = String(merged.teamBinId || "");
     merged.siteName = String(merged.siteName || DEFAULT_SETTINGS.siteName);
